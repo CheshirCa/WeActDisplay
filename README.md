@@ -1,5 +1,7 @@
 # WeAct Display FS Library for PureBasic
 
+![WeAct 0.96" Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
+
 [English version below](#english-version)
 
 ## Русская версия
