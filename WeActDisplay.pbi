@@ -1,6 +1,6 @@
 ; =============================================
 ; WeAct Display FS Library for PureBasic
-; Version 3.1 - Stable Release (Fixed Buffer Size)
+; Version 3.2 - Stable Release (Fixed Colors & Text)
 ; Supports WeAct Display FS 0.96-inch
 ; =============================================
 
@@ -26,15 +26,15 @@ Enumeration
   #SCROLL_DOWN
 EndEnumeration
 
-; { Базовые цвета RGB565 }
-#WEACT_RED   = $F800
-#WEACT_GREEN = $07E0
-#WEACT_BLUE  = $001F
-#WEACT_WHITE = $FFFF
-#WEACT_BLACK = $0000
-#WEACT_YELLOW = $FFE0
-#WEACT_CYAN   = $07FF
-#WEACT_MAGENTA = $F81F
+; { Предопределенные цвета для BRG565 }
+#WEACT_RED    = $07C0    ; BRG: 00000 11111 000000 (синий=0, красный=31, зеленый=0)
+#WEACT_GREEN  = $001F    ; BRG: 00000 00000 011111 (синий=0, красный=0, зеленый=31)
+#WEACT_BLUE   = $F800    ; BRG: 11111 00000 000000 (синий=31, красный=0, зеленый=0)
+#WEACT_WHITE  = $FFFF    ; BRG: 11111 11111 111111
+#WEACT_BLACK  = $0000    ; BRG: 00000 00000 000000
+#WEACT_YELLOW = $07FF    ; BRG: 00000 11111 111111 (синий=0, красный=31, зеленый=63)
+#WEACT_CYAN   = $F81F    ; BRG: 11111 00000 111111 (синий=31, красный=0, зеленый=63)
+#WEACT_MAGENTA = $FFE0   ; BRG: 11111 11111 000000 (синий=0, красный=31, зеленый=63)
 
 ; { Структуры }
 Structure WeActDisplay
@@ -80,14 +80,20 @@ Declare WeAct_SetOrientation(Orientation)
 ; =============================================
 
 Procedure.i RGBToRGB565(r, g, b)
-  Protected rgb565.i
+  ; Нормализуем значения
   r = r & $FF
-  g = g & $FF
+  g = g & $FF  
   b = b & $FF
-  rgb565 = (r >> 3) << 11
-  rgb565 | (g >> 2) << 5
-  rgb565 | (b >> 3)
-  ProcedureReturn rgb565
+  
+  ; Преобразуем в BRG565 (Синий, Красный, Зеленый)
+  Protected r5 = (r >> 3) & $1F    ; 5 бит красного
+  Protected g6 = (g >> 2) & $3F    ; 6 бит зеленого  
+  Protected b5 = (b >> 3) & $1F    ; 5 бит синего
+  
+  ; Формируем цвет в порядке: BBBBBRRRRRGGGGGG
+  Protected brg565 = (b5 << 11) | (r5 << 6) | g6
+  
+  ProcedureReturn brg565
 EndProcedure
 
 Procedure SendCommand(*Data, Length)
@@ -176,8 +182,9 @@ Procedure WeAct_ClearBuffer(Color = #WEACT_BLACK)
   
   Protected i
   Protected *ptr = WeActDisplay\BackBuffer
-  Protected color_l = Color & $FF
-  Protected color_h = Color >> 8
+  ; Исправляем порядок байт
+  Protected color_l = Color >> 8     ; Старший байт
+  Protected color_h = Color & $FF    ; Младший байт
   
   For i = 0 To (WeAct_DisplayWidth * WeAct_DisplayHeight) - 1
     PokeA(*ptr + i * 2, color_l)
@@ -193,8 +200,9 @@ Procedure WeAct_DrawPixelBuffer(x, y, Color)
   
   Protected offset = (y * WeAct_DisplayWidth + x) * 2
   Protected *ptr = WeActDisplay\BackBuffer + offset
-  PokeA(*ptr, Color & $FF)
-  PokeA(*ptr + 1, Color >> 8)
+  ; Исправляем порядок байт
+  PokeA(*ptr, Color >> 8)      ; Старший байт
+  PokeA(*ptr + 1, Color & $FF) ; Младший байт
 EndProcedure
 
 Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
@@ -360,6 +368,7 @@ EndProcedure
 
 Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
   If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
+  If Text = "" : ProcedureReturn : EndIf
   
   Protected fontID, tempImage
   
@@ -371,27 +380,28 @@ Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontNam
     EndIf
   EndIf
   
-  tempImage = CreateImage(#PB_Any, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, 24)
+  ; Создаем временное изображение для рендеринга текста
+  tempImage = CreateImage(#PB_Any, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, 24, #Black)
   If tempImage
     If StartDrawing(ImageOutput(tempImage))
-      Box(0, 0, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, RGB(0, 0, 0))
       DrawingFont(FontID(fontID))
       DrawingMode(#PB_2DDrawing_Transparent)
-      Protected textColor = RGB(Red(Color), Green(Color), Blue(Color))
-      DrawText(x, y, Text, textColor)
+      ; Рисуем текст БЕЛЫМ цветом на черном фоне
+      DrawText(x, y, Text, RGB(255, 255, 255))
       StopDrawing()
       
+      ; Копируем белые пиксели текста на дисплей
       If StartDrawing(ImageOutput(tempImage))
-        Protected sourceX, sourceY, pixelColor, r, g, b
+        Protected sourceX, sourceY, pixelColor, brightness
         
         For sourceY = 0 To #WEACT_DISPLAY_HEIGHT - 1
           For sourceX = 0 To #WEACT_DISPLAY_WIDTH - 1
             pixelColor = Point(sourceX, sourceY)
-            If pixelColor <> 0
-              r = Red(pixelColor)
-              g = Green(pixelColor)
-              b = Blue(pixelColor)
-              WeAct_DrawPixelBuffer(sourceX, sourceY, RGBToRGB565(r, g, b))
+            brightness = Red(pixelColor) ; Для серого R=G=B
+            
+            ; Захватываем все пиксели текста (включая сглаженные)
+            If brightness > 30 ; Оптимальный порог для читаемости
+              WeAct_DrawPixelBuffer(sourceX, sourceY, Color)
             EndIf
           Next
         Next
@@ -996,14 +1006,7 @@ EndProcedure
 ; { ДЕСТРУКТОР }
 ; =============================================
 
-  Procedure WeAct_Cleanup()
+Procedure WeAct_Cleanup()
   WeAct_CleanupFonts()
   WeAct_Close()
 EndProcedure
-
-
-; IDE Options = PureBasic 6.21 (Windows - x86)
-; CursorPosition = 983
-; FirstLine = 947
-; Folding = --------
-; EnableXP
