@@ -466,3 +466,4 @@ If OpenWindow(#WINDOW_MAIN, 0, 0, 600, 700, "WeAct Display FS Test Suite", #PB_W
 EndIf
 
 WeAct_Cleanup()
+
