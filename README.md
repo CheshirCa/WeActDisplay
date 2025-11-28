@@ -1,233 +1,343 @@
 # WeAct Display FS Library for PureBasic
 
-## Описание библиотеки
+[English version below](#english-version)
 
-Библиотека для работы с дисплеем WeAct Display FS 0.96-inch через последовательный порт. Поддерживает двойную буферизацию, системные шрифты и загрузку изображений.
+## Русская версия
 
-## Основные функции
+### Описание
 
-### Инициализация и управление
+Библиотека для работы с дисплеем WeAct Display FS 0.96-дюйма через последовательный порт. Поддерживает графику, текст, изображения, скроллинг и управление дисплеем.
 
-**WeAct_Init(PortName.s)**
-Инициализирует дисплей и подключается к указанному COM-порту.
-Возвращает #True при успешной инициализации.
+### Основные возможности
+
+- 📺 Графические примитивы (пиксели, линии, прямоугольники)
+- 📝 Рендеринг текста с поддержкой шрифтов
+- 🖼️ Загрузка изображений (BMP, JPEG, PNG, TIFF, TGA)
+- 🔄 Скроллинг текста в 4 направлениях
+- 🎛️ Управление ориентацией и яркостью
+- 💾 Двойная буферизация для плавной анимации
+
+### Установка
+
+1. Подключите дисплей к COM-порту
+2. Включите библиотеку в ваш проект:
+```purebasic
+XIncludeFile "WeActDisplay.pbi"
 ```
+
+### Инициализация
+
+```purebasic
+; Инициализация дисплея
 If WeAct_Init("COM8")
-  Debug "Дисплей инициализирован"
-EndIf
-```
-
-**WeAct_Close()**
-Закрывает соединение с дисплеем и освобождает ресурсы.
-```
-WeAct_Close()
-```
-
-**WeAct_IsConnected()**
-Проверяет подключение к дисплею.
-Возвращает #True если дисплей подключен.
-```
-If WeAct_IsConnected()
   Debug "Дисплей подключен"
+Else
+  Debug "Ошибка подключения"
 EndIf
+
+; Обязательная очистка при завершении
+WeAct_Cleanup()
 ```
 
-### Управление дисплеем
+### Основные функции
 
-**WeAct_SetOrientation(Orientation)**
-Устанавливает ориентацию дисплея.
-Допустимые значения: #WEACT_PORTRAIT, #WEACT_LANDSCAPE, #WEACT_REVERSE_PORTRAIT, #WEACT_REVERSE_LANDSCAPE, #WEACT_ROTATE
-```
-WeAct_SetOrientation(#WEACT_LANDSCAPE)
-```
+#### Графические примитивы
 
-**WeAct_SetBrightness(Brightness, TimeMs)**
-Устанавливает яркость дисплея (0-255) с плавным изменением за указанное время в миллисекундах.
-```
-WeAct_SetBrightness(200, 1000) ; Яркость 200, изменение за 1 секунду
-```
+```purebasic
+; Очистка буфера
+WeAct_ClearBuffer(#WEACT_BLACK)
 
-**WeAct_SystemReset()**
-Выполняет системный сброс дисплея.
-```
-WeAct_SystemReset()
-```
+; Рисование пикселя
+WeAct_DrawPixelBuffer(10, 10, #WEACT_RED)
 
-### Работа с буфером
+; Рисование линии
+WeAct_DrawLineBuffer(0, 0, 50, 50, #WEACT_GREEN)
 
-**WeAct_ClearBuffer(Color)**
-Очищает back buffer указанным цветом.
-```
-WeAct_ClearBuffer(#WEACT_BLACK) ; Очистить черным цветом
-WeAct_ClearBuffer(#WEACT_WHITE) ; Очистить белым цветом
-```
+; Рисование прямоугольника
+WeAct_DrawRectangleBuffer(20, 20, 40, 30, #WEACT_BLUE, #True)  ; Залитый
+WeAct_DrawRectangleBuffer(70, 20, 40, 30, #WEACT_WHITE, #False) ; Контур
 
-**WeAct_UpdateDisplay()**
-Выводит содержимое back buffer на дисплей и переключает буферы.
-```
+; Обновление дисплея
 WeAct_UpdateDisplay()
 ```
 
-### Графические примитивы
+#### Работа с текстом
 
-**WeAct_DrawPixelBuffer(x, y, Color)**
-Рисует пиксель в back buffer.
-```
-WeAct_DrawPixelBuffer(10, 10, #WEACT_RED)
-```
+```purebasic
+; Простой текст
+WeAct_DrawTextSmall(10, 10, "Маленький текст", #WEACT_WHITE)
+WeAct_DrawTextMedium(10, 25, "Средний текст", #WEACT_CYAN)
+WeAct_DrawTextLarge(10, 45, "Большой текст", #WEACT_YELLOW)
 
-**WeAct_DrawLineBuffer(x1, y1, x2, y2, Color)**
-Рисует линию в back buffer.
-```
-WeAct_DrawLineBuffer(0, 0, 50, 50, #WEACT_GREEN)
-```
+; Текст с произвольным шрифтом
+WeAct_DrawTextSystemFont(10, 65, "Произвольный шрифт", #WEACT_GREEN, 14, "Arial")
 
-**WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled)**
-Рисует прямоугольник в back buffer.
-Filled = #True для залитого, #False для контура.
-```
-; Залитый прямоугольник
-WeAct_DrawRectangleBuffer(10, 10, 50, 30, #WEACT_BLUE, #True)
-
-; Контур прямоугольника  
-WeAct_DrawRectangleBuffer(70, 10, 50, 30, #WEACT_YELLOW, #False)
+; Перенос текста
+WeAct_DrawWrappedTextAutoSize(10, 10, 140, 60, 
+  "Это длинный текст, который автоматически переносится на несколько строк", 
+  #WEACT_WHITE, "Arial")
 ```
 
-### Работа с текстом
+#### Скроллинг текста
 
-**WeAct_DrawTextSystemFont(x, y, Text, Color, FontSize, FontName)**
-Рисует текст системным шрифтом в back buffer.
-```
-WeAct_DrawTextSystemFont(10, 10, "Hello World", #WEACT_WHITE, 12, "Arial")
-```
+```purebasic
+; Запуск скроллинга
+WeAct_ScrollTextLeft("Текст скроллится влево", 20, 12, #WEACT_GREEN)
 
-**WeAct_DrawTextSmall(x, y, Text, Color)**
-Рисует текст мелким шрифтом (8px).
-```
-WeAct_DrawTextSmall(10, 10, "Small text", #WEACT_WHITE)
-```
+; В основном цикле
+Repeat
+  WeAct_ClearBuffer(#WEACT_BLACK)
+  WeAct_UpdateScrollText()
+  WeAct_DrawScrollText()
+  WeAct_UpdateDisplay()
+  Delay(30)
+ForEver
 
-**WeAct_DrawTextMedium(x, y, Text, Color)**
-Рисует текст средним шрифтом (12px).
-```
-WeAct_DrawTextMedium(10, 25, "Medium text", #WEACT_GREEN)
-```
-
-**WeAct_DrawTextLarge(x, y, Text, Color)**
-Рисует текст крупным шрифтом (16px).
-```
-WeAct_DrawTextLarge(10, 45, "Large text", #WEACT_RED)
+; Остановка скроллинга
+WeAct_StopScrollText()
 ```
 
-### Работа с изображениями
+#### Загрузка изображений
 
-**WeAct_LoadImageToBuffer(x, y, FileName, Width, Height)**
-Загружает изображение из файла в back buffer с возможностью ресайза.
-```
-; Оригинальный размер
-WeAct_LoadImageToBuffer(0, 0, "image.jpg")
+```purebasic
+; Загрузка с автоматическим масштабированием
+WeAct_LoadImageCentered("image.jpg", 100, 50)
 
-; Ресайз до указанных размеров
-WeAct_LoadImageToBuffer(10, 10, "image.jpg", 100, 50)
-```
+; Загрузка на полный экран
+WeAct_LoadImageFullScreen("background.jpg")
 
-**WeAct_LoadImageFullScreen(FileName)**
-Загружает изображение на весь экран с сохранением пропорций.
-```
-WeAct_LoadImageFullScreen("photo.jpg")
+; Загрузка в указанную позицию
+WeAct_LoadImageToBuffer(10, 10, "icon.png", 32, 32)
 ```
 
-**WeAct_LoadImageCentered(FileName, Width, Height)**
-Загружает изображение по центру экрана.
-```
-; Центрированное изображение с оригинальным размером
-WeAct_LoadImageCentered("logo.png")
+#### Управление дисплеем
 
-; Центрированное изображение 100x60
-WeAct_LoadImageCentered("logo.png", 100, 60)
-```
+```purebasic
+; Смена ориентации
+WeAct_SetOrientation(#WEACT_PORTRAIT)      ; Портретная
+WeAct_SetOrientation(#WEACT_LANDSCAPE)     ; Альбомная
 
-### Вспомогательные функции
+; Управление яркостью
+WeAct_SetBrightness(150, 500)  ; Яркость 150, время изменения 500мс
 
-**WeAct_GetInfo()**
-Возвращает информацию о подключенном дисплее.
-```
+; Системный сброс
+WeAct_SystemReset()
+
+; Получение информации
 Debug WeAct_GetInfo()
+Debug "Ширина: " + Str(WeAct_GetDisplayWidth())
+Debug "Высота: " + Str(WeAct_GetDisplayHeight())
+Debug "Яркость: " + Str(WeAct_GetBrightness())
 ```
 
-**WeAct_GetOrientation()**
-Возвращает текущую ориентацию дисплея.
-```
-orientation = WeAct_GetOrientation()
+#### Цвета RGB565
+
+```purebasic
+; Предопределенные цвета
+#WEACT_RED    = $F800
+#WEACT_GREEN  = $07E0  
+#WEACT_BLUE   = $001F
+#WEACT_WHITE  = $FFFF
+#WEACT_BLACK  = $0000
+#WEACT_YELLOW = $FFE0
+#WEACT_CYAN   = $07FF
+#WEACT_MAGENTA = $F81F
+
+; Создание цвета из RGB
+color = RGBToRGB565(255, 128, 0)  ; Оранжевый
 ```
 
-**WeAct_GetBrightness()**
-Возвращает текущую яркость дисплея.
-```
-brightness = WeAct_GetBrightness()
-```
+### Полный пример
 
-## Пример программы
+```purebasic
+XIncludeFile "WeActDisplay.pbi"
 
-```
-; Подключаем библиотеку
-IncludeFile "WeActDisplay.pbi"
-
-; Инициализируем дисплей
 If WeAct_Init("COM8")
-  
-  ; Очищаем буфер черным цветом
   WeAct_ClearBuffer(#WEACT_BLACK)
   
-  ; Рисуем текст разными размерами
-  WeAct_DrawTextSmall(10, 10, "Small text", #WEACT_WHITE)
-  WeAct_DrawTextMedium(10, 25, "Medium text", #WEACT_GREEN) 
-  WeAct_DrawTextLarge(10, 45, "Large text", #WEACT_RED)
+  ; Графика
+  WeAct_DrawRectangleBuffer(10, 10, 140, 60, #WEACT_BLUE, #False)
+  WeAct_DrawLineBuffer(10, 10, 150, 70, #WEACT_RED)
   
-  ; Рисуем графические примитивы
-  WeAct_DrawRectangleBuffer(100, 10, 50, 30, #WEACT_BLUE, #True)
-  WeAct_DrawLineBuffer(100, 50, 150, 70, #WEACT_YELLOW)
+  ; Текст
+  WeAct_DrawTextMedium(20, 25, "Hello World!", #WEACT_WHITE)
+  WeAct_DrawTextSmall(20, 45, "WeAct Display", #WEACT_GREEN)
   
-  ; Выводим на дисплей
   WeAct_UpdateDisplay()
   
-  ; Ждем 3 секунды
   Delay(3000)
-  
-  ; Очищаем и загружаем изображение
-  WeAct_ClearBuffer(#WEACT_BLACK)
-  WeAct_LoadImageFullScreen("background.jpg")
-  WeAct_UpdateDisplay()
-  
-  ; Закрываем соединение
-  WeAct_Close()
-  
-Else
-  Debug "Ошибка инициализации дисплея"
+  WeAct_Cleanup()
 EndIf
 ```
 
-## Поддерживаемые форматы изображений
+---
 
-Библиотека поддерживает загрузку изображений в форматах: BMP, JPEG, PNG, TIFF, TGA, GIF.
+<a name="english-version"></a>
+## English Version
 
-## Цвета
+### Description
 
-Доступные предопределенные цвета в формате RGB565:
-- #WEACT_RED
-- #WEACT_GREEN  
-- #WEACT_BLUE
-- #WEACT_WHITE
-- #WEACT_BLACK
-- #WEACT_YELLOW
-- #WEACT_CYAN
-- #WEACT_MAGENTA
+Library for working with WeAct Display FS 0.96-inch display via serial port. Supports graphics, text, images, scrolling and display control.
 
-Также можно создавать свои цвета с помощью функции RGBToRGB565(r, g, b).
+### Key Features
 
-## Важные замечания
+- 📺 Graphics primitives (pixels, lines, rectangles)
+- 📝 Text rendering with font support
+- 🖼️ Image loading (BMP, JPEG, PNG, TIFF, TGA)
+- 🔄 Text scrolling in 4 directions
+- 🎛️ Orientation and brightness control
+- 💾 Double buffering for smooth animation
 
-1. Все функции рисования работают с back buffer. Для вывода на дисплей необходимо вызвать WeAct_UpdateDisplay().
-2. Библиотека использует двойную буферизацию для плавного вывода.
-3. При завершении программы автоматически вызывается очистка ресурсов.
-4. Для работы с изображениями необходимо наличие файлов изображений в поддерживаемых форматах.
+### Installation
+
+1. Connect display to COM port
+2. Include library in your project:
+```purebasic
+XIncludeFile "WeActDisplay.pbi"
+```
+
+### Initialization
+
+```purebasic
+; Display initialization
+If WeAct_Init("COM8")
+  Debug "Display connected"
+Else
+  Debug "Connection error"
+EndIf
+
+; Mandatory cleanup on exit
+WeAct_Cleanup()
+```
+
+### Core Functions
+
+#### Graphics Primitives
+
+```purebasic
+; Clear buffer
+WeAct_ClearBuffer(#WEACT_BLACK)
+
+; Draw pixel
+WeAct_DrawPixelBuffer(10, 10, #WEACT_RED)
+
+; Draw line
+WeAct_DrawLineBuffer(0, 0, 50, 50, #WEACT_GREEN)
+
+; Draw rectangle
+WeAct_DrawRectangleBuffer(20, 20, 40, 30, #WEACT_BLUE, #True)  ; Filled
+WeAct_DrawRectangleBuffer(70, 20, 40, 30, #WEACT_WHITE, #False) ; Outline
+
+; Update display
+WeAct_UpdateDisplay()
+```
+
+#### Text Rendering
+
+```purebasic
+; Simple text
+WeAct_DrawTextSmall(10, 10, "Small text", #WEACT_WHITE)
+WeAct_DrawTextMedium(10, 25, "Medium text", #WEACT_CYAN)
+WeAct_DrawTextLarge(10, 45, "Large text", #WEACT_YELLOW)
+
+; Text with custom font
+WeAct_DrawTextSystemFont(10, 65, "Custom font", #WEACT_GREEN, 14, "Arial")
+
+; Text wrapping
+WeAct_DrawWrappedTextAutoSize(10, 10, 140, 60, 
+  "This is a long text that automatically wraps to multiple lines", 
+  #WEACT_WHITE, "Arial")
+```
+
+#### Text Scrolling
+
+```purebasic
+; Start scrolling
+WeAct_ScrollTextLeft("Text scrolling left", 20, 12, #WEACT_GREEN)
+
+; In main loop
+Repeat
+  WeAct_ClearBuffer(#WEACT_BLACK)
+  WeAct_UpdateScrollText()
+  WeAct_DrawScrollText()
+  WeAct_UpdateDisplay()
+  Delay(30)
+ForEver
+
+; Stop scrolling
+WeAct_StopScrollText()
+```
+
+#### Image Loading
+
+```purebasic
+; Load with auto-scaling
+WeAct_LoadImageCentered("image.jpg", 100, 50)
+
+; Load full screen
+WeAct_LoadImageFullScreen("background.jpg")
+
+; Load to specific position
+WeAct_LoadImageToBuffer(10, 10, "icon.png", 32, 32)
+```
+
+#### Display Control
+
+```purebasic
+; Change orientation
+WeAct_SetOrientation(#WEACT_PORTRAIT)      ; Portrait
+WeAct_SetOrientation(#WEACT_LANDSCAPE)     ; Landscape
+
+; Brightness control
+WeAct_SetBrightness(150, 500)  ; Brightness 150, transition time 500ms
+
+; System reset
+WeAct_SystemReset()
+
+; Get information
+Debug WeAct_GetInfo()
+Debug "Width: " + Str(WeAct_GetDisplayWidth())
+Debug "Height: " + Str(WeAct_GetDisplayHeight())
+Debug "Brightness: " + Str(WeAct_GetBrightness())
+```
+
+#### RGB565 Colors
+
+```purebasic
+; Predefined colors
+#WEACT_RED    = $F800
+#WEACT_GREEN  = $07E0  
+#WEACT_BLUE   = $001F
+#WEACT_WHITE  = $FFFF
+#WEACT_BLACK  = $0000
+#WEACT_YELLOW = $FFE0
+#WEACT_CYAN   = $07FF
+#WEACT_MAGENTA = $F81F
+
+; Create color from RGB
+color = RGBToRGB565(255, 128, 0)  ; Orange
+```
+
+### Complete Example
+
+```purebasic
+XIncludeFile "WeActDisplay.pbi"
+
+If WeAct_Init("COM8")
+  WeAct_ClearBuffer(#WEACT_BLACK)
+  
+  ; Graphics
+  WeAct_DrawRectangleBuffer(10, 10, 140, 60, #WEACT_BLUE, #False)
+  WeAct_DrawLineBuffer(10, 10, 150, 70, #WEACT_RED)
+  
+  ; Text
+  WeAct_DrawTextMedium(20, 25, "Hello World!", #WEACT_WHITE)
+  WeAct_DrawTextSmall(20, 45, "WeAct Display", #WEACT_GREEN)
+  
+  WeAct_UpdateDisplay()
+  
+  Delay(3000)
+  WeAct_Cleanup()
+EndIf
+```
+
