@@ -1,6 +1,6 @@
 ; =============================================
 ; WeAct Display FS Library for PureBasic
-; Version 3.0 - Stable Release
+; Version 3.1 - Stable Release (Fixed Buffer Size)
 ; Supports WeAct Display FS 0.96-inch
 ; =============================================
 
@@ -69,9 +69,6 @@ EndStructure
 Global WeActDisplay.WeActDisplay
 Global NewMap FontCache.FontCache()
 Global ScrollText.ScrollText
-Global DisplayWidth.i = #WEACT_DISPLAY_WIDTH
-Global DisplayHeight.i = #WEACT_DISPLAY_HEIGHT
-Global BufferSize.i = #WEACT_BUFFER_SIZE
 
 Declare WeAct_SetOrientation(Orientation)
 
@@ -121,16 +118,13 @@ Procedure WeAct_Init(PortName.s = "COM3")
     WeActDisplay\CurrentOrientation = #WEACT_LANDSCAPE
     WeActDisplay\CurrentBrightness = 255
     
-    DisplayWidth = #WEACT_DISPLAY_WIDTH
-    DisplayHeight = #WEACT_DISPLAY_HEIGHT
-    BufferSize = #WEACT_BUFFER_SIZE
-    
-    WeActDisplay\FrameBuffer = AllocateMemory(BufferSize)
-    WeActDisplay\BackBuffer = AllocateMemory(BufferSize)
+    ; Выделяем буферы фиксированного размера 160x80
+    WeActDisplay\FrameBuffer = AllocateMemory(#WEACT_BUFFER_SIZE)
+    WeActDisplay\BackBuffer = AllocateMemory(#WEACT_BUFFER_SIZE)
     
     If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-      FillMemory(WeActDisplay\FrameBuffer, BufferSize, 0)
-      FillMemory(WeActDisplay\BackBuffer, BufferSize, 0)
+      FillMemory(WeActDisplay\FrameBuffer, #WEACT_BUFFER_SIZE, 0)
+      FillMemory(WeActDisplay\BackBuffer, #WEACT_BUFFER_SIZE, 0)
       
       WeAct_InitImageDecoders()
       WeAct_SetOrientation(#WEACT_LANDSCAPE)
@@ -150,13 +144,17 @@ EndProcedure
 Procedure WeAct_Close()
   If WeActDisplay\IsConnected
     CloseSerialPort(WeActDisplay\SerialPort)
-    If WeActDisplay\FrameBuffer
-      FreeMemory(WeActDisplay\FrameBuffer)
-    EndIf
-    If WeActDisplay\BackBuffer
-      FreeMemory(WeActDisplay\BackBuffer)
-    EndIf
     WeActDisplay\IsConnected = #False
+  EndIf
+  
+  ; Безопасное освобождение памяти
+  If WeActDisplay\FrameBuffer
+    FreeMemory(WeActDisplay\FrameBuffer)
+    WeActDisplay\FrameBuffer = 0
+  EndIf
+  If WeActDisplay\BackBuffer
+    FreeMemory(WeActDisplay\BackBuffer)
+    WeActDisplay\BackBuffer = 0
   EndIf
 EndProcedure
 
@@ -171,24 +169,29 @@ Procedure WeAct_SwapBuffers()
 EndProcedure
 
 Procedure WeAct_ClearBuffer(Color = #WEACT_BLACK)
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
+  
   Protected i
   Protected *ptr = WeActDisplay\BackBuffer
   Protected color_l = Color & $FF
   Protected color_h = Color >> 8
   
-  For i = 0 To (DisplayWidth * DisplayHeight) - 1
+  For i = 0 To (#WEACT_DISPLAY_WIDTH * #WEACT_DISPLAY_HEIGHT) - 1
     PokeA(*ptr + i * 2, color_l)
     PokeA(*ptr + i * 2 + 1, color_h)
   Next
 EndProcedure
 
 Procedure WeAct_DrawPixelBuffer(x, y, Color)
-  If x >= 0 And x < DisplayWidth And y >= 0 And y < DisplayHeight
-    Protected offset = (y * DisplayWidth + x) * 2
-    Protected *ptr = WeActDisplay\BackBuffer + offset
-    PokeA(*ptr, Color & $FF)
-    PokeA(*ptr + 1, Color >> 8)
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
+  If x < 0 Or x >= #WEACT_DISPLAY_WIDTH Or y < 0 Or y >= #WEACT_DISPLAY_HEIGHT
+    ProcedureReturn
   EndIf
+  
+  Protected offset = (y * #WEACT_DISPLAY_WIDTH + x) * 2
+  Protected *ptr = WeActDisplay\BackBuffer + offset
+  PokeA(*ptr, Color & $FF)
+  PokeA(*ptr + 1, Color >> 8)
 EndProcedure
 
 Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
@@ -196,9 +199,9 @@ Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
   
   If Filled
     For yy = y To y + Height - 1
-      If yy >= 0 And yy < DisplayHeight
+      If yy >= 0 And yy < #WEACT_DISPLAY_HEIGHT
         For xx = x To x + Width - 1
-          If xx >= 0 And xx < DisplayWidth
+          If xx >= 0 And xx < #WEACT_DISPLAY_WIDTH
             WeAct_DrawPixelBuffer(xx, yy, Color)
           EndIf
         Next
@@ -243,6 +246,9 @@ EndProcedure
 ; =============================================
 
 Procedure WeAct_FlushBuffer()
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn #False : EndIf
+  If Not WeActDisplay\IsConnected : ProcedureReturn #False : EndIf
+  
   Dim Command.b(10)
   Command(0) = $05
   
@@ -251,23 +257,24 @@ Procedure WeAct_FlushBuffer()
   Command(3) = 0
   Command(4) = 0
   
-  Protected x_end = DisplayWidth - 1
+  Protected x_end = #WEACT_DISPLAY_WIDTH - 1
   Command(5) = x_end & $FF
   Command(6) = (x_end >> 8) & $FF
   
-  Protected y_end = DisplayHeight - 1
+  Protected y_end = #WEACT_DISPLAY_HEIGHT - 1
   Command(7) = y_end & $FF
   Command(8) = (y_end >> 8) & $FF
   
   Command(9) = $0A
   
-  If WeActDisplay\IsConnected
-    WriteSerialPortData(WeActDisplay\SerialPort, @Command(), 10)
+  If WriteSerialPortData(WeActDisplay\SerialPort, @Command(), 10)
     Delay(10)
-    WriteSerialPortData(WeActDisplay\SerialPort, WeActDisplay\BackBuffer, BufferSize)
-    Delay(10)
-    ProcedureReturn #True
+    If WriteSerialPortData(WeActDisplay\SerialPort, WeActDisplay\BackBuffer, #WEACT_BUFFER_SIZE)
+      Delay(10)
+      ProcedureReturn #True
+    EndIf
   EndIf
+  
   ProcedureReturn #False
 EndProcedure
 
@@ -349,6 +356,8 @@ Procedure.i WeAct_GetTextHeight(Text.s, FontSize.i, FontName.s = "Arial")
 EndProcedure
 
 Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
+  
   Protected fontID, tempImage
   
   fontID = GetCachedFont(FontName, FontSize)
@@ -359,10 +368,10 @@ Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontNam
     EndIf
   EndIf
   
-  tempImage = CreateImage(#PB_Any, DisplayWidth, DisplayHeight, 24)
+  tempImage = CreateImage(#PB_Any, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, 24)
   If tempImage
     If StartDrawing(ImageOutput(tempImage))
-      Box(0, 0, DisplayWidth, DisplayHeight, RGB(0, 0, 0))
+      Box(0, 0, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, RGB(0, 0, 0))
       DrawingFont(FontID(fontID))
       DrawingMode(#PB_2DDrawing_Transparent)
       Protected textColor = RGB(Red(Color), Green(Color), Blue(Color))
@@ -372,8 +381,8 @@ Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontNam
       If StartDrawing(ImageOutput(tempImage))
         Protected sourceX, sourceY, pixelColor, r, g, b
         
-        For sourceY = 0 To DisplayHeight - 1
-          For sourceX = 0 To DisplayWidth - 1
+        For sourceY = 0 To #WEACT_DISPLAY_HEIGHT - 1
+          For sourceX = 0 To #WEACT_DISPLAY_WIDTH - 1
             pixelColor = Point(sourceX, sourceY)
             If pixelColor <> 0
               r = Red(pixelColor)
@@ -407,6 +416,8 @@ EndProcedure
 ; =============================================
 
 Procedure WeAct_DrawWrappedText(x, y, Width, Height, Text.s, Color, FontSize.i = 12, FontName.s = "Arial", AutoSize = #False)
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
+  
   Protected fontID, tempImage, currentFontSize
   Protected Dim lines.s(0)
   Protected lineCount, i, currentY
@@ -601,11 +612,11 @@ Procedure WeAct_StartScrollText(Text.s, FontSize.i = 12, Direction.i = #SCROLL_L
   
   Select Direction
     Case #SCROLL_LEFT
-      ScrollText\Position = DisplayWidth
+      ScrollText\Position = #WEACT_DISPLAY_WIDTH
     Case #SCROLL_RIGHT
       ScrollText\Position = -WeAct_GetTextWidth(Text, FontSize, FontName)
     Case #SCROLL_UP
-      ScrollText\Position = DisplayHeight
+      ScrollText\Position = #WEACT_DISPLAY_HEIGHT
     Case #SCROLL_DOWN
       ScrollText\Position = -WeAct_GetTextHeight(Text, FontSize, FontName)
   EndSelect
@@ -638,21 +649,21 @@ Procedure WeAct_UpdateScrollText()
     Case #SCROLL_LEFT
       ScrollText\Position - pixelsToMove
       If ScrollText\Position < -WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
-        ScrollText\Position = DisplayWidth
+        ScrollText\Position = #WEACT_DISPLAY_WIDTH
       EndIf
     Case #SCROLL_RIGHT
       ScrollText\Position + pixelsToMove
-      If ScrollText\Position > DisplayWidth
+      If ScrollText\Position > #WEACT_DISPLAY_WIDTH
         ScrollText\Position = -WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
       EndIf
     Case #SCROLL_UP
       ScrollText\Position - pixelsToMove
       If ScrollText\Position < -WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
-        ScrollText\Position = DisplayHeight
+        ScrollText\Position = #WEACT_DISPLAY_HEIGHT
       EndIf
     Case #SCROLL_DOWN
       ScrollText\Position + pixelsToMove
-      If ScrollText\Position > DisplayHeight
+      If ScrollText\Position > #WEACT_DISPLAY_HEIGHT
         ScrollText\Position = -WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
       EndIf
   EndSelect
@@ -670,9 +681,9 @@ Procedure WeAct_DrawScrollText()
   Select ScrollText\Direction
     Case #SCROLL_LEFT, #SCROLL_RIGHT
       x = ScrollText\Position
-      y = (DisplayHeight - WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
+      y = (#WEACT_DISPLAY_HEIGHT - WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
     Case #SCROLL_UP, #SCROLL_DOWN
-      x = (DisplayWidth - WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
+      x = (#WEACT_DISPLAY_WIDTH - WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
       y = ScrollText\Position
   EndSelect
   
@@ -704,6 +715,8 @@ Procedure.s WeAct_GetSupportedImageFormats()
 EndProcedure
 
 Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn #False : EndIf
+  
   Protected originalImage, resizedImage
   Protected originalWidth, originalHeight
   Protected targetWidth, targetHeight
@@ -738,20 +751,20 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
   targetWidth = Int(targetWidth)
   targetHeight = Int(targetHeight)
   
-  If targetWidth > DisplayWidth
-    targetWidth = DisplayWidth
+  If targetWidth > #WEACT_DISPLAY_WIDTH
+    targetWidth = #WEACT_DISPLAY_WIDTH
   EndIf
-  If targetHeight > DisplayHeight
-    targetHeight = DisplayHeight
+  If targetHeight > #WEACT_DISPLAY_HEIGHT
+    targetHeight = #WEACT_DISPLAY_HEIGHT
   EndIf
   
   If x < 0 : x = 0 : EndIf
   If y < 0 : y = 0 : EndIf
-  If x + targetWidth > DisplayWidth
-    x = DisplayWidth - targetWidth
+  If x + targetWidth > #WEACT_DISPLAY_WIDTH
+    x = #WEACT_DISPLAY_WIDTH - targetWidth
   EndIf
-  If y + targetHeight > DisplayHeight
-    y = DisplayHeight - targetHeight
+  If y + targetHeight > #WEACT_DISPLAY_HEIGHT
+    y = #WEACT_DISPLAY_HEIGHT - targetHeight
   EndIf
   
   If targetWidth <= 0 Or targetHeight <= 0
@@ -803,16 +816,16 @@ Procedure WeAct_LoadImageFullScreen(FileName.s)
     ProcedureReturn #False
   EndIf
   
-  scale = DisplayWidth / ImageWidth(originalImage)
-  If (DisplayHeight / ImageHeight(originalImage)) < scale
-    scale = DisplayHeight / ImageHeight(originalImage)
+  scale = #WEACT_DISPLAY_WIDTH / ImageWidth(originalImage)
+  If (#WEACT_DISPLAY_HEIGHT / ImageHeight(originalImage)) < scale
+    scale = #WEACT_DISPLAY_HEIGHT / ImageHeight(originalImage)
   EndIf
   
   targetWidth = ImageWidth(originalImage) * scale
   targetHeight = ImageHeight(originalImage) * scale
   
-  x = (DisplayWidth - targetWidth) / 2
-  y = (DisplayHeight - targetHeight) / 2
+  x = (#WEACT_DISPLAY_WIDTH - targetWidth) / 2
+  y = (#WEACT_DISPLAY_HEIGHT - targetHeight) / 2
   
   FreeImage(originalImage)
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
@@ -845,8 +858,8 @@ Procedure WeAct_LoadImageCentered(FileName.s, Width.i = -1, Height.i = -1)
     targetHeight = Height
   EndIf
   
-  x = (DisplayWidth - targetWidth) / 2
-  y = (DisplayHeight - targetHeight) / 2
+  x = (#WEACT_DISPLAY_WIDTH - targetWidth) / 2
+  y = (#WEACT_DISPLAY_HEIGHT - targetHeight) / 2
   
   FreeImage(originalImage)
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
@@ -864,39 +877,17 @@ Procedure WeAct_SetOrientation(Orientation)
     Command(2) = $0A
     If SendCommand(@Command(), 3)
       WeActDisplay\CurrentOrientation = Orientation
+      Delay(100)
       
-      Select Orientation
-        Case #WEACT_PORTRAIT, #WEACT_REVERSE_PORTRAIT
-          DisplayWidth = #WEACT_DISPLAY_HEIGHT
-          DisplayHeight = #WEACT_DISPLAY_WIDTH
-        Case #WEACT_LANDSCAPE, #WEACT_REVERSE_LANDSCAPE
-          DisplayWidth = #WEACT_DISPLAY_WIDTH
-          DisplayHeight = #WEACT_DISPLAY_HEIGHT
-      EndSelect
-      
-      BufferSize = DisplayWidth * DisplayHeight * 2
-      Delay(200)
-      
+      ; Очищаем буферы при смене ориентации
       If WeActDisplay\FrameBuffer
-        FreeMemory(WeActDisplay\FrameBuffer)
+        FillMemory(WeActDisplay\FrameBuffer, #WEACT_BUFFER_SIZE, 0)
       EndIf
       If WeActDisplay\BackBuffer
-        FreeMemory(WeActDisplay\BackBuffer)
+        FillMemory(WeActDisplay\BackBuffer, #WEACT_BUFFER_SIZE, 0)
       EndIf
       
-      WeActDisplay\FrameBuffer = AllocateMemory(BufferSize)
-      WeActDisplay\BackBuffer = AllocateMemory(BufferSize)
-      
-      If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-        FillMemory(WeActDisplay\FrameBuffer, BufferSize, 0)
-        FillMemory(WeActDisplay\BackBuffer, BufferSize, 0)
-        ProcedureReturn #True
-      Else
-        DisplayWidth = #WEACT_DISPLAY_WIDTH
-        DisplayHeight = #WEACT_DISPLAY_HEIGHT
-        BufferSize = #WEACT_BUFFER_SIZE
-        ProcedureReturn #False
-      EndIf
+      ProcedureReturn #True
     EndIf
   EndIf
   ProcedureReturn #False
@@ -953,11 +944,11 @@ Procedure.i WeAct_IsConnected()
 EndProcedure
 
 Procedure.i WeAct_GetDisplayWidth()
-  ProcedureReturn DisplayWidth
+  ProcedureReturn #WEACT_DISPLAY_WIDTH
 EndProcedure
 
 Procedure.i WeAct_GetDisplayHeight()
-  ProcedureReturn DisplayHeight
+  ProcedureReturn #WEACT_DISPLAY_HEIGHT
 EndProcedure
 
 Procedure WeAct_CleanupFonts()
@@ -973,7 +964,7 @@ EndProcedure
 ; { ДЕСТРУКТОР }
 ; =============================================
 
-Procedure WeAct_Cleanup()
+  Procedure WeAct_Cleanup()
   WeAct_CleanupFonts()
   WeAct_Close()
 EndProcedure
@@ -984,9 +975,3 @@ If IsWindow(0) = 0
 EndIf
 AddWindowTimer(0, 0, 1000)
 BindEvent(#PB_Event_Timer, @WeAct_Cleanup())
-
-; IDE Options = PureBasic 6.21 (Windows - x86)
-; CursorPosition = 75
-; FirstLine = 42
-; Folding = --------
-; EnableXP
