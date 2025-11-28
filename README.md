@@ -6,19 +6,6 @@
 
 Complete library for working with WeAct Display FS 0.96-inch (160x80) via serial port.
 
-## 📋 Содержание / Table of Contents
-- [Особенности / Features](#особенности--features)
-- [Установка / Installation](#установка--installation)
-- [Инициализация / Initialization](#инициализация--initialization)
-- [Базовые функции / Basic Functions](#базовые-функции--basic-functions)
-- [Работа с текстом / Text Operations](#работа-с-текстом--text-operations)
-- [Графические функции / Graphics Functions](#графические-функции--graphics-functions)
-- [Скроллинг текста / Text Scrolling](#скроллинг-текста--text-scrolling)
-- [Работа с изображениями / Image Operations](#работа-с-изображениями--image-operations)
-- [Управление дисплеем / Display Control](#управление-дисплеем--display-control)
-- [Вспомогательные функции / Utility Functions](#вспомогательные-функции--utility-functions)
-- [Примеры / Examples](#примеры--examples)
-
 ## 🌟 Особенности / Features
 
 - ✅ Поддержка дисплея WeAct Display FS 0.96-inch (160x80)
