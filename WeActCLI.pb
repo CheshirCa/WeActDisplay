@@ -228,4 +228,5 @@ EndIf
 ; FirstLine = 123
 ; Folding = -
 ; EnableXP
+
 ; Executable = WeActCLI.exe
