@@ -12,20 +12,6 @@
 
 ; { Константы ориентации }
 Enumeration
-  #WEACT_PORTRAIT = 0; =============================================
-; WeAct Display FS Library for PureBasic
-; Version 3.1 - Stable Release (Fixed Buffer Size)
-; Supports WeAct Display FS 0.96-inch
-; =============================================
-
-; { Константы устройства }
-#WEACT_DISPLAY_WIDTH = 160
-#WEACT_DISPLAY_HEIGHT = 80
-#WEACT_BAUDRATE = 115200
-#WEACT_BUFFER_SIZE = #WEACT_DISPLAY_WIDTH * #WEACT_DISPLAY_HEIGHT * 2
-
-; { Константы ориентации }
-Enumeration
   #WEACT_PORTRAIT = 0
   #WEACT_REVERSE_PORTRAIT = 1
   #WEACT_LANDSCAPE = 2
@@ -1972,10 +1958,6 @@ EndProcedure
   WeAct_Close()
 EndProcedure
 
-; Автоматическая очистка при завершении
-If IsWindow(0) = 0
-  OpenWindow(0, 0, 0, 1, 1, "")
-EndIf
-AddWindowTimer(0, 0, 1000)
-BindEvent(#PB_Event_Timer, @WeAct_Cleanup())
+
+
 
