@@ -1,6 +1,6 @@
-﻿; =============================================
+; =============================================
 ; WeAct Display FS Library for PureBasic
-; Version 2.0 - Optimized with Buffering
+; Version 3.0 - Stable Release
 ; Supports WeAct Display FS 0.96-inch
 ; =============================================
 
@@ -8,7 +8,7 @@
 #WEACT_DISPLAY_WIDTH = 160
 #WEACT_DISPLAY_HEIGHT = 80
 #WEACT_BAUDRATE = 115200
-#WEACT_BUFFER_SIZE = #WEACT_DISPLAY_WIDTH * #WEACT_DISPLAY_HEIGHT * 2 ; 25600 bytes
+#WEACT_BUFFER_SIZE = #WEACT_DISPLAY_WIDTH * #WEACT_DISPLAY_HEIGHT * 2
 
 ; { Константы ориентации }
 Enumeration
@@ -16,7 +16,14 @@ Enumeration
   #WEACT_REVERSE_PORTRAIT = 1
   #WEACT_LANDSCAPE = 2
   #WEACT_REVERSE_LANDSCAPE = 3
-  #WEACT_ROTATE = 5
+EndEnumeration
+
+; { Константы скроллинга }
+Enumeration
+  #SCROLL_LEFT = 0
+  #SCROLL_RIGHT
+  #SCROLL_UP
+  #SCROLL_DOWN
 EndEnumeration
 
 ; { Базовые цвета RGB565 }
@@ -46,9 +53,27 @@ Structure FontCache
   Name.s
 EndStructure
 
+Structure ScrollText
+  Text.s
+  FontSize.i
+  Direction.i
+  Speed.i
+  Position.i
+  Color.i
+  FontName.s
+  Active.i
+  LastUpdate.i
+EndStructure
+
 ; { Глобальные переменные }
 Global WeActDisplay.WeActDisplay
 Global NewMap FontCache.FontCache()
+Global ScrollText.ScrollText
+Global DisplayWidth.i = #WEACT_DISPLAY_WIDTH
+Global DisplayHeight.i = #WEACT_DISPLAY_HEIGHT
+Global BufferSize.i = #WEACT_BUFFER_SIZE
+
+Declare WeAct_SetOrientation(Orientation)
 
 ; =============================================
 ; { БАЗОВЫЕ ФУНКЦИИ }
@@ -68,7 +93,7 @@ EndProcedure
 Procedure SendCommand(*Data, Length)
   If WeActDisplay\IsConnected
     Result = WriteSerialPortData(WeActDisplay\SerialPort, *Data, Length)
-    Delay(2) ; Минимальная задержка
+    Delay(5)
     ProcedureReturn Result
   EndIf
   ProcedureReturn #False
@@ -79,12 +104,10 @@ EndProcedure
 ; =============================================
 
 Procedure WeAct_InitImageDecoders()
-  ; Инициализация декодеров для поддержки различных форматов изображений
   UseJPEGImageDecoder()
-  UsePNGImageDecoder() 
+  UsePNGImageDecoder()
   UseTIFFImageDecoder()
   UseTGAImageDecoder()
-  UseGIFImageDecoder()
 EndProcedure
 
 Procedure WeAct_Init(PortName.s = "COM3")
@@ -98,17 +121,20 @@ Procedure WeAct_Init(PortName.s = "COM3")
     WeActDisplay\CurrentOrientation = #WEACT_LANDSCAPE
     WeActDisplay\CurrentBrightness = 255
     
-    ; Выделяем буферы
-    WeActDisplay\FrameBuffer = AllocateMemory(#WEACT_BUFFER_SIZE)
-    WeActDisplay\BackBuffer = AllocateMemory(#WEACT_BUFFER_SIZE)
+    DisplayWidth = #WEACT_DISPLAY_WIDTH
+    DisplayHeight = #WEACT_DISPLAY_HEIGHT
+    BufferSize = #WEACT_BUFFER_SIZE
+    
+    WeActDisplay\FrameBuffer = AllocateMemory(BufferSize)
+    WeActDisplay\BackBuffer = AllocateMemory(BufferSize)
     
     If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-      ; Очищаем буферы
-      FillMemory(WeActDisplay\FrameBuffer, #WEACT_BUFFER_SIZE, 0)
-      FillMemory(WeActDisplay\BackBuffer, #WEACT_BUFFER_SIZE, 0)
+      FillMemory(WeActDisplay\FrameBuffer, BufferSize, 0)
+      FillMemory(WeActDisplay\BackBuffer, BufferSize, 0)
       
-      ; Инициализируем декодеры изображений
       WeAct_InitImageDecoders()
+      WeAct_SetOrientation(#WEACT_LANDSCAPE)
+      Delay(500)
       
       ProcedureReturn #True
     Else
@@ -139,29 +165,26 @@ EndProcedure
 ; =============================================
 
 Procedure WeAct_SwapBuffers()
-  ; Быстрое переключение буферов
   Protected *temp = WeActDisplay\FrameBuffer
   WeActDisplay\FrameBuffer = WeActDisplay\BackBuffer
   WeActDisplay\BackBuffer = *temp
 EndProcedure
 
 Procedure WeAct_ClearBuffer(Color = #WEACT_BLACK)
-  ; Очистка back buffer
   Protected i
   Protected *ptr = WeActDisplay\BackBuffer
   Protected color_l = Color & $FF
   Protected color_h = Color >> 8
   
-  For i = 0 To (#WEACT_DISPLAY_WIDTH * #WEACT_DISPLAY_HEIGHT) - 1
+  For i = 0 To (DisplayWidth * DisplayHeight) - 1
     PokeA(*ptr + i * 2, color_l)
     PokeA(*ptr + i * 2 + 1, color_h)
   Next
 EndProcedure
 
 Procedure WeAct_DrawPixelBuffer(x, y, Color)
-  ; Рисование пикселя в back buffer
-  If x >= 0 And x < #WEACT_DISPLAY_WIDTH And y >= 0 And y < #WEACT_DISPLAY_HEIGHT
-    Protected offset = (y * #WEACT_DISPLAY_WIDTH + x) * 2
+  If x >= 0 And x < DisplayWidth And y >= 0 And y < DisplayHeight
+    Protected offset = (y * DisplayWidth + x) * 2
     Protected *ptr = WeActDisplay\BackBuffer + offset
     PokeA(*ptr, Color & $FF)
     PokeA(*ptr + 1, Color >> 8)
@@ -169,21 +192,19 @@ Procedure WeAct_DrawPixelBuffer(x, y, Color)
 EndProcedure
 
 Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
-  ; Рисование прямоугольника в back buffer
   Protected xx, yy
   
   If Filled
     For yy = y To y + Height - 1
-      If yy >= 0 And yy < #WEACT_DISPLAY_HEIGHT
+      If yy >= 0 And yy < DisplayHeight
         For xx = x To x + Width - 1
-          If xx >= 0 And xx < #WEACT_DISPLAY_WIDTH
+          If xx >= 0 And xx < DisplayWidth
             WeAct_DrawPixelBuffer(xx, yy, Color)
           EndIf
         Next
       EndIf
     Next
   Else
-    ; Контур
     For xx = x To x + Width - 1
       WeAct_DrawPixelBuffer(xx, y, Color)
       WeAct_DrawPixelBuffer(xx, y + Height - 1, Color)
@@ -196,7 +217,6 @@ Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
 EndProcedure
 
 Procedure WeAct_DrawLineBuffer(x1, y1, x2, y2, Color)
-  ; Алгоритм Брезенхэма для линии
   Protected dx = Abs(x2 - x1)
   Protected dy = Abs(y2 - y1)
   Protected sx = 1 : If x1 > x2 : sx = -1 : EndIf
@@ -219,35 +239,39 @@ Procedure WeAct_DrawLineBuffer(x1, y1, x2, y2, Color)
 EndProcedure
 
 ; =============================================
-; { БЫСТРЫЙ ВЫВОД НА ДИСПЛЕЙ }
+; { ВЫВОД НА ДИСПЛЕЙ }
 ; =============================================
 
 Procedure WeAct_FlushBuffer()
-  ; Быстрая отправка всего back buffer на дисплей
-  Dim Command.b(9)
-  Command(0) = $05        ; SET_BITMAP
+  Dim Command.b(10)
+  Command(0) = $05
   
-  ; Вся область экрана
-  Command(1) = 0          ; xs_l8
-  Command(2) = 0          ; xs_h8
-  Command(3) = 0          ; ys_l8
-  Command(4) = 0          ; ys_h8
-  Command(5) = #WEACT_DISPLAY_WIDTH - 1 & $FF    ; xe_l8
-  Command(6) = #WEACT_DISPLAY_WIDTH - 1 >> 8     ; xe_h8
-  Command(7) = #WEACT_DISPLAY_HEIGHT - 1 & $FF   ; ye_l8
-  Command(8) = #WEACT_DISPLAY_HEIGHT - 1 >> 8    ; ye_h8
-  Command(9) = $0A        ; Terminator
+  Command(1) = 0
+  Command(2) = 0
+  Command(3) = 0
+  Command(4) = 0
+  
+  Protected x_end = DisplayWidth - 1
+  Command(5) = x_end & $FF
+  Command(6) = (x_end >> 8) & $FF
+  
+  Protected y_end = DisplayHeight - 1
+  Command(7) = y_end & $FF
+  Command(8) = (y_end >> 8) & $FF
+  
+  Command(9) = $0A
   
   If WeActDisplay\IsConnected
     WriteSerialPortData(WeActDisplay\SerialPort, @Command(), 10)
-    WriteSerialPortData(WeActDisplay\SerialPort, WeActDisplay\BackBuffer, #WEACT_BUFFER_SIZE)
+    Delay(10)
+    WriteSerialPortData(WeActDisplay\SerialPort, WeActDisplay\BackBuffer, BufferSize)
+    Delay(10)
     ProcedureReturn #True
   EndIf
   ProcedureReturn #False
 EndProcedure
 
 Procedure WeAct_UpdateDisplay()
-  ; Обновление дисплея и переключение буферов
   If WeAct_FlushBuffer()
     WeAct_SwapBuffers()
     ProcedureReturn #True
@@ -256,11 +280,10 @@ Procedure WeAct_UpdateDisplay()
 EndProcedure
 
 ; =============================================
-; { РЕНДЕРИНГ СИСТЕМНЫМИ ШРИФТАМИ }
+; { РЕНДЕРИНГ ТЕКСТА }
 ; =============================================
 
 Procedure.i GetCachedFont(FontName.s, FontSize.i)
-  ; Кэширование шрифтов для избежания повторной загрузки
   Protected key.s = FontName + "_" + Str(FontSize)
   
   If FindMapElement(FontCache(), key)
@@ -279,63 +302,94 @@ Procedure.i GetCachedFont(FontName.s, FontSize.i)
   ProcedureReturn #PB_Default
 EndProcedure
 
-Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
-  ; Рендеринг текста системным шрифтом в back buffer
-  Protected fontID, tempImage
+Procedure.i WeAct_GetTextWidth(Text.s, FontSize.i, FontName.s = "Arial")
+  Protected fontID, width.i = 0
+  Protected tempImage
   
-  ; Загружаем шрифт ДО начала рисования
   fontID = GetCachedFont(FontName, FontSize)
   If fontID = #PB_Default
     fontID = LoadFont(#PB_Any, FontName, FontSize)
     If Not fontID
-      ProcedureReturn ; Не удалось загрузить шрифт
+      ProcedureReturn 0
     EndIf
   EndIf
   
-  ; Создаем временное изображение для рендеринга текста
-  tempImage = CreateImage(#PB_Any, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, 24)
+  tempImage = CreateImage(#PB_Any, 1, 1, 24)
+  If tempImage And StartDrawing(ImageOutput(tempImage))
+    DrawingFont(FontID(fontID))
+    width = TextWidth(Text)
+    StopDrawing()
+    FreeImage(tempImage)
+  EndIf
+  
+  ProcedureReturn width
+EndProcedure
+
+Procedure.i WeAct_GetTextHeight(Text.s, FontSize.i, FontName.s = "Arial")
+  Protected fontID, height.i = 0
+  Protected tempImage
+  
+  fontID = GetCachedFont(FontName, FontSize)
+  If fontID = #PB_Default
+    fontID = LoadFont(#PB_Any, FontName, FontSize)
+    If Not fontID
+      ProcedureReturn 0
+    EndIf
+  EndIf
+  
+  tempImage = CreateImage(#PB_Any, 1, 1, 24)
+  If tempImage And StartDrawing(ImageOutput(tempImage))
+    DrawingFont(FontID(fontID))
+    height = TextHeight(Text)
+    StopDrawing()
+    FreeImage(tempImage)
+  EndIf
+  
+  ProcedureReturn height
+EndProcedure
+
+Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
+  Protected fontID, tempImage
+  
+  fontID = GetCachedFont(FontName, FontSize)
+  If fontID = #PB_Default
+    fontID = LoadFont(#PB_Any, FontName, FontSize)
+    If Not fontID
+      ProcedureReturn
+    EndIf
+  EndIf
+  
+  tempImage = CreateImage(#PB_Any, DisplayWidth, DisplayHeight, 24)
   If tempImage
     If StartDrawing(ImageOutput(tempImage))
-      ; Очищаем фон
-      Box(0, 0, #WEACT_DISPLAY_WIDTH, #WEACT_DISPLAY_HEIGHT, RGB(0, 0, 0))
-      
-      ; Устанавливаем заранее загруженный шрифт
+      Box(0, 0, DisplayWidth, DisplayHeight, RGB(0, 0, 0))
       DrawingFont(FontID(fontID))
       DrawingMode(#PB_2DDrawing_Transparent)
-      
-      ; Конвертируем RGB565 в RGB
       Protected textColor = RGB(Red(Color), Green(Color), Blue(Color))
-      
-      ; Рисуем текст
       DrawText(x, y, Text, textColor)
-      
       StopDrawing()
       
-      ; Копируем результат в back buffer
       If StartDrawing(ImageOutput(tempImage))
         Protected sourceX, sourceY, pixelColor, r, g, b
         
-        For sourceY = 0 To #WEACT_DISPLAY_HEIGHT - 1
-          For sourceX = 0 To #WEACT_DISPLAY_WIDTH - 1
+        For sourceY = 0 To DisplayHeight - 1
+          For sourceX = 0 To DisplayWidth - 1
             pixelColor = Point(sourceX, sourceY)
-            If pixelColor <> 0 ; Если не черный (текст)
+            If pixelColor <> 0
               r = Red(pixelColor)
-              g = Green(pixelColor) 
+              g = Green(pixelColor)
               b = Blue(pixelColor)
               WeAct_DrawPixelBuffer(sourceX, sourceY, RGBToRGB565(r, g, b))
             EndIf
           Next
         Next
-        
         StopDrawing()
       EndIf
-      
       FreeImage(tempImage)
     EndIf
   EndIf
 EndProcedure
 
-; Упрощенные версии с предзагруженными шрифтами
 Procedure WeAct_DrawTextSmall(x, y, Text.s, Color)
   WeAct_DrawTextSystemFont(x, y, Text, Color, 8, "Arial")
 EndProcedure
@@ -348,51 +402,325 @@ Procedure WeAct_DrawTextLarge(x, y, Text.s, Color)
   WeAct_DrawTextSystemFont(x, y, Text, Color, 16, "Arial")
 EndProcedure
 
-; Функция для очистки кэша шрифтов при завершении
-Procedure WeAct_CleanupFonts()
-  ForEach FontCache()
-    If FontCache()\FontID
-      FreeFont(FontCache()\FontID)
+; =============================================
+; { ПЕРЕНОС ТЕКСТА }
+; =============================================
+
+Procedure WeAct_DrawWrappedText(x, y, Width, Height, Text.s, Color, FontSize.i = 12, FontName.s = "Arial", AutoSize = #False)
+  Protected fontID, tempImage, currentFontSize
+  Protected Dim lines.s(0)
+  Protected lineCount, i, currentY
+  Protected maxLines, lineHeight
+  Protected fitted = #False
+  
+  currentFontSize = FontSize
+  
+  If AutoSize
+    While currentFontSize >= 6 And Not fitted
+      fontID = GetCachedFont(FontName, currentFontSize)
+      If fontID = #PB_Default
+        fontID = LoadFont(#PB_Any, FontName, currentFontSize)
+        If Not fontID
+          ProcedureReturn
+        EndIf
+      EndIf
+      
+      tempImage = CreateImage(#PB_Any, Width, Height, 24)
+      If tempImage
+        If StartDrawing(ImageOutput(tempImage))
+          DrawingFont(FontID(fontID))
+          ReDim lines.s(0)
+          lineCount = 0
+          Protected words.s = ReplaceString(Text, Chr(13) + Chr(10), " ")
+          words = ReplaceString(words, Chr(13), " ")
+          words = ReplaceString(words, Chr(10), " ")
+          Protected wordCount = CountString(words, " ") + 1
+          Protected currentLine.s = ""
+          Protected testLine.s
+          Protected textWidth
+          
+          For i = 1 To wordCount
+            testLine = currentLine
+            If testLine <> ""
+              testLine + " "
+            EndIf
+            testLine + StringField(words, i, " ")
+            textWidth = TextWidth(testLine)
+            If textWidth <= Width
+              currentLine = testLine
+            Else
+              If currentLine <> ""
+                ReDim lines.s(lineCount + 1)
+                lines(lineCount) = currentLine
+                lineCount + 1
+              EndIf
+              currentLine = StringField(words, i, " ")
+            EndIf
+          Next i
+          
+          If currentLine <> ""
+            ReDim lines.s(lineCount + 1)
+            lines(lineCount) = currentLine
+            lineCount + 1
+          EndIf
+          
+          lineHeight = TextHeight("A")
+          maxLines = Height / lineHeight
+          
+          If lineCount <= maxLines
+            fitted = #True
+          Else
+            currentFontSize - 1
+          EndIf
+          StopDrawing()
+        EndIf
+        FreeImage(tempImage)
+      EndIf
+      
+      If Not fitted And currentFontSize < 6
+        currentFontSize = 6
+        fitted = #True
+      EndIf
+    Wend
+  Else
+    fontID = GetCachedFont(FontName, currentFontSize)
+    If fontID = #PB_Default
+      fontID = LoadFont(#PB_Any, FontName, currentFontSize)
+      If Not fontID
+        ProcedureReturn
+      EndIf
     EndIf
-  Next
-  ClearMap(FontCache())
+    
+    tempImage = CreateImage(#PB_Any, Width, Height, 24)
+    If tempImage
+      If StartDrawing(ImageOutput(tempImage))
+        DrawingFont(FontID(fontID))
+        ReDim lines.s(0)
+        lineCount = 0
+        words.s = ReplaceString(Text, Chr(13) + Chr(10), " ")
+        words = ReplaceString(words, Chr(13), " ")
+        words = ReplaceString(words, Chr(10), " ")
+        wordCount = CountString(words, " ") + 1
+        currentLine.s = ""
+        
+        For i = 1 To wordCount
+          testLine = currentLine
+          If testLine <> ""
+            testLine + " "
+          EndIf
+          testLine + StringField(words, i, " ")
+          textWidth = TextWidth(testLine)
+          If textWidth <= Width
+            currentLine = testLine
+          Else
+            If currentLine <> ""
+              ReDim lines.s(lineCount + 1)
+              lines(lineCount) = currentLine
+              lineCount + 1
+            EndIf
+            currentLine = StringField(words, i, " ")
+          EndIf
+        Next i
+        
+        If currentLine <> ""
+          ReDim lines.s(lineCount + 1)
+          lines(lineCount) = currentLine
+          lineCount + 1
+        EndIf
+        
+        lineHeight = TextHeight("A")
+        maxLines = Height / lineHeight
+        
+        If lineCount > maxLines
+          lineCount = maxLines
+        EndIf
+        StopDrawing()
+      EndIf
+      FreeImage(tempImage)
+    EndIf
+  EndIf
+  
+  tempImage = CreateImage(#PB_Any, Width, Height, 24)
+  If tempImage
+    If StartDrawing(ImageOutput(tempImage))
+      Box(0, 0, Width, Height, RGB(0, 0, 0))
+      DrawingFont(FontID(fontID))
+      DrawingMode(#PB_2DDrawing_Transparent)
+      Protected textColor = RGB(Red(Color), Green(Color), Blue(Color))
+      currentY = 0
+      For i = 0 To lineCount - 1
+        If lines(i) <> ""
+          DrawText(0, currentY, lines(i), textColor)
+          currentY + lineHeight
+        EndIf
+      Next i
+      StopDrawing()
+      
+      If StartDrawing(ImageOutput(tempImage))
+        Protected sourceX, sourceY, pixelColor, r, g, b
+        
+        For sourceY = 0 To Height - 1
+          For sourceX = 0 To Width - 1
+            pixelColor = Point(sourceX, sourceY)
+            If pixelColor <> 0
+              r = Red(pixelColor)
+              g = Green(pixelColor)
+              b = Blue(pixelColor)
+              WeAct_DrawPixelBuffer(x + sourceX, y + sourceY, RGBToRGB565(r, g, b))
+            EndIf
+          Next
+        Next
+        StopDrawing()
+      EndIf
+      FreeImage(tempImage)
+    EndIf
+  EndIf
+EndProcedure
+
+Procedure WeAct_DrawWrappedTextAutoSize(x, y, Width, Height, Text.s, Color, FontName.s = "Arial")
+  WeAct_DrawWrappedText(x, y, Width, Height, Text, Color, 12, FontName, #True)
+EndProcedure
+
+Procedure WeAct_DrawWrappedTextFixed(x, y, Width, Height, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
+  WeAct_DrawWrappedText(x, y, Width, Height, Text, Color, FontSize, FontName, #False)
 EndProcedure
 
 ; =============================================
-; { ЗАГРУЗКА И ВЫВОД ИЗОБРАЖЕНИЙ }
+; { СКРОЛЛИНГ ТЕКСТА }
+; =============================================
+
+Procedure WeAct_StartScrollText(Text.s, FontSize.i = 12, Direction.i = #SCROLL_LEFT, Speed.i = 20, Color.i = #WEACT_WHITE, FontName.s = "Arial")
+  ScrollText\Text = Text
+  ScrollText\FontSize = FontSize
+  ScrollText\Direction = Direction
+  ScrollText\Speed = Speed
+  ScrollText\Color = Color
+  ScrollText\FontName = FontName
+  ScrollText\Active = #True
+  ScrollText\LastUpdate = ElapsedMilliseconds()
+  
+  Select Direction
+    Case #SCROLL_LEFT
+      ScrollText\Position = DisplayWidth
+    Case #SCROLL_RIGHT
+      ScrollText\Position = -WeAct_GetTextWidth(Text, FontSize, FontName)
+    Case #SCROLL_UP
+      ScrollText\Position = DisplayHeight
+    Case #SCROLL_DOWN
+      ScrollText\Position = -WeAct_GetTextHeight(Text, FontSize, FontName)
+  EndSelect
+EndProcedure
+
+Procedure WeAct_StopScrollText()
+  ScrollText\Active = #False
+EndProcedure
+
+Procedure WeAct_UpdateScrollText()
+  If Not ScrollText\Active
+    ProcedureReturn
+  EndIf
+  
+  Protected currentTime = ElapsedMilliseconds()
+  Protected deltaTime = currentTime - ScrollText\LastUpdate
+  Protected pixelsToMove.f
+  
+  If deltaTime <= 0
+    ProcedureReturn
+  EndIf
+  
+  pixelsToMove = ScrollText\Speed * (deltaTime / 1000.0)
+  
+  If pixelsToMove < 1.0
+    ProcedureReturn
+  EndIf
+  
+  Select ScrollText\Direction
+    Case #SCROLL_LEFT
+      ScrollText\Position - pixelsToMove
+      If ScrollText\Position < -WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
+        ScrollText\Position = DisplayWidth
+      EndIf
+    Case #SCROLL_RIGHT
+      ScrollText\Position + pixelsToMove
+      If ScrollText\Position > DisplayWidth
+        ScrollText\Position = -WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
+      EndIf
+    Case #SCROLL_UP
+      ScrollText\Position - pixelsToMove
+      If ScrollText\Position < -WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
+        ScrollText\Position = DisplayHeight
+      EndIf
+    Case #SCROLL_DOWN
+      ScrollText\Position + pixelsToMove
+      If ScrollText\Position > DisplayHeight
+        ScrollText\Position = -WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)
+      EndIf
+  EndSelect
+  
+  ScrollText\LastUpdate = currentTime
+EndProcedure
+
+Procedure WeAct_DrawScrollText()
+  If Not ScrollText\Active
+    ProcedureReturn
+  EndIf
+  
+  Protected x, y
+  
+  Select ScrollText\Direction
+    Case #SCROLL_LEFT, #SCROLL_RIGHT
+      x = ScrollText\Position
+      y = (DisplayHeight - WeAct_GetTextHeight(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
+    Case #SCROLL_UP, #SCROLL_DOWN
+      x = (DisplayWidth - WeAct_GetTextWidth(ScrollText\Text, ScrollText\FontSize, ScrollText\FontName)) / 2
+      y = ScrollText\Position
+  EndSelect
+  
+  WeAct_DrawTextSystemFont(x, y, ScrollText\Text, ScrollText\Color, ScrollText\FontSize, ScrollText\FontName)
+EndProcedure
+
+Procedure WeAct_ScrollTextLeft(Text.s, Speed.i = 20, FontSize.i = 12, Color.i = #WEACT_WHITE)
+  WeAct_StartScrollText(Text, FontSize, #SCROLL_LEFT, Speed, Color)
+EndProcedure
+
+Procedure WeAct_ScrollTextRight(Text.s, Speed.i = 20, FontSize.i = 12, Color.i = #WEACT_WHITE)
+  WeAct_StartScrollText(Text, FontSize, #SCROLL_RIGHT, Speed, Color)
+EndProcedure
+
+Procedure WeAct_ScrollTextUp(Text.s, Speed.i = 20, FontSize.i = 12, Color.i = #WEACT_WHITE)
+  WeAct_StartScrollText(Text, FontSize, #SCROLL_UP, Speed, Color)
+EndProcedure
+
+Procedure WeAct_ScrollTextDown(Text.s, Speed.i = 20, FontSize.i = 12, Color.i = #WEACT_WHITE)
+  WeAct_StartScrollText(Text, FontSize, #SCROLL_DOWN, Speed, Color)
+EndProcedure
+
+; =============================================
+; { ЗАГРУЗКА ИЗОБРАЖЕНИЙ }
 ; =============================================
 
 Procedure.s WeAct_GetSupportedImageFormats()
-  ; Возвращает поддерживаемые форматы изображений
-  ProcedureReturn "BMP, JPEG, PNG, TIFF, TGA, GIF"
+  ProcedureReturn "BMP, JPEG, PNG, TIFF, TGA"
 EndProcedure
 
 Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
-  ; Загрузка изображения из файла в back buffer с ресайзингом
   Protected originalImage, resizedImage
   Protected originalWidth, originalHeight
   Protected targetWidth, targetHeight
   Protected destX, destY, pixelColor, r, g, b
   
-  ; Проверяем существование файла
   If FileSize(FileName) <= 0
-    Debug "File not found or empty: " + FileName
     ProcedureReturn #False
   EndIf
   
-  ; Загружаем изображение (теперь поддерживаются все форматы)
   originalImage = LoadImage(#PB_Any, FileName)
   If Not originalImage
-    Debug "Cannot load image: " + FileName
-    Debug "Supported formats: " + WeAct_GetSupportedImageFormats()
     ProcedureReturn #False
   EndIf
   
-  ; Получаем размеры исходного изображения
   originalWidth = ImageWidth(originalImage)
   originalHeight = ImageHeight(originalImage)
   
-  ; Определяем целевые размеры
   If Width = -1 And Height = -1
     targetWidth = originalWidth
     targetHeight = originalHeight
@@ -407,52 +735,43 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
     targetHeight = Height
   EndIf
   
-  ; Округляем до целых
   targetWidth = Int(targetWidth)
   targetHeight = Int(targetHeight)
   
-  ; Ограничиваем размеры экраном
-  If targetWidth > #WEACT_DISPLAY_WIDTH
-    targetWidth = #WEACT_DISPLAY_WIDTH
+  If targetWidth > DisplayWidth
+    targetWidth = DisplayWidth
   EndIf
-  If targetHeight > #WEACT_DISPLAY_HEIGHT
-    targetHeight = #WEACT_DISPLAY_HEIGHT
+  If targetHeight > DisplayHeight
+    targetHeight = DisplayHeight
   EndIf
   
-  ; Проверяем позицию
   If x < 0 : x = 0 : EndIf
   If y < 0 : y = 0 : EndIf
-  If x + targetWidth > #WEACT_DISPLAY_WIDTH
-    x = #WEACT_DISPLAY_WIDTH - targetWidth
+  If x + targetWidth > DisplayWidth
+    x = DisplayWidth - targetWidth
   EndIf
-  If y + targetHeight > #WEACT_DISPLAY_HEIGHT
-    y = #WEACT_DISPLAY_HEIGHT - targetHeight
+  If y + targetHeight > DisplayHeight
+    y = DisplayHeight - targetHeight
   EndIf
   
-  ; Если размеры нулевые - выходим
   If targetWidth <= 0 Or targetHeight <= 0
-    Debug "Error: Target size is zero"
     FreeImage(originalImage)
     ProcedureReturn #False
   EndIf
   
-  ; Создаем ресайзнутое изображение
   resizedImage = CreateImage(#PB_Any, targetWidth, targetHeight)
   If Not resizedImage
-    Debug "Cannot create resized image"
     FreeImage(originalImage)
     ProcedureReturn #False
   EndIf
   
-  ; Ресайзим изображение
   If StartDrawing(ImageOutput(resizedImage))
     DrawingMode(#PB_2DDrawing_Default)
-    Box(0, 0, targetWidth, targetHeight, RGB(0, 0, 0)) ; Черный фон
+    Box(0, 0, targetWidth, targetHeight, RGB(0, 0, 0))
     DrawImage(ImageID(originalImage), 0, 0, targetWidth, targetHeight)
     StopDrawing()
   EndIf
   
-  ; Копируем в back buffer
   If StartDrawing(ImageOutput(resizedImage))
     For destY = 0 To targetHeight - 1
       For destX = 0 To targetWidth - 1
@@ -466,60 +785,49 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
     StopDrawing()
   EndIf
   
-  ; Освобождаем ресурсы
   FreeImage(resizedImage)
   FreeImage(originalImage)
-  
   ProcedureReturn #True
 EndProcedure
 
 Procedure WeAct_LoadImageFullScreen(FileName.s)
-  ; Загрузка изображения на весь экран с сохранением пропорций
   Protected originalImage, targetWidth, targetHeight
   Protected scale.f, x, y
   
   If FileSize(FileName) <= 0
-    Debug "File not found: " + FileName
     ProcedureReturn #False
   EndIf
   
   originalImage = LoadImage(#PB_Any, FileName)
   If Not originalImage
-    Debug "Cannot load image: " + FileName
     ProcedureReturn #False
   EndIf
   
-  ; Вычисляем масштаб для вписывания в экран
-  scale = #WEACT_DISPLAY_WIDTH / ImageWidth(originalImage)
-  If (#WEACT_DISPLAY_HEIGHT / ImageHeight(originalImage)) < scale
-    scale = #WEACT_DISPLAY_HEIGHT / ImageHeight(originalImage)
+  scale = DisplayWidth / ImageWidth(originalImage)
+  If (DisplayHeight / ImageHeight(originalImage)) < scale
+    scale = DisplayHeight / ImageHeight(originalImage)
   EndIf
   
   targetWidth = ImageWidth(originalImage) * scale
   targetHeight = ImageHeight(originalImage) * scale
   
-  ; Центрируем
-  x = (#WEACT_DISPLAY_WIDTH - targetWidth) / 2
-  y = (#WEACT_DISPLAY_HEIGHT - targetHeight) / 2
+  x = (DisplayWidth - targetWidth) / 2
+  y = (DisplayHeight - targetHeight) / 2
   
   FreeImage(originalImage)
-  
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
 EndProcedure
 
 Procedure WeAct_LoadImageCentered(FileName.s, Width.i = -1, Height.i = -1)
-  ; Загрузка изображения по центру экрана
   Protected originalImage, targetWidth, targetHeight
   Protected x, y
   
   If FileSize(FileName) <= 0
-    Debug "File not found: " + FileName
     ProcedureReturn #False
   EndIf
   
   originalImage = LoadImage(#PB_Any, FileName)
   If Not originalImage
-    Debug "Cannot load image: " + FileName
     ProcedureReturn #False
   EndIf
   
@@ -537,17 +845,15 @@ Procedure WeAct_LoadImageCentered(FileName.s, Width.i = -1, Height.i = -1)
     targetHeight = Height
   EndIf
   
-  ; Центрируем
-  x = (#WEACT_DISPLAY_WIDTH - targetWidth) / 2
-  y = (#WEACT_DISPLAY_HEIGHT - targetHeight) / 2
+  x = (DisplayWidth - targetWidth) / 2
+  y = (DisplayHeight - targetHeight) / 2
   
   FreeImage(originalImage)
-  
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
 EndProcedure
 
 ; =============================================
-; { ОСНОВНЫЕ КОМАНДЫ УПРАВЛЕНИЯ }
+; { УПРАВЛЕНИЕ ДИСПЛЕЕМ }
 ; =============================================
 
 Procedure WeAct_SetOrientation(Orientation)
@@ -558,7 +864,39 @@ Procedure WeAct_SetOrientation(Orientation)
     Command(2) = $0A
     If SendCommand(@Command(), 3)
       WeActDisplay\CurrentOrientation = Orientation
-      ProcedureReturn #True
+      
+      Select Orientation
+        Case #WEACT_PORTRAIT, #WEACT_REVERSE_PORTRAIT
+          DisplayWidth = #WEACT_DISPLAY_HEIGHT
+          DisplayHeight = #WEACT_DISPLAY_WIDTH
+        Case #WEACT_LANDSCAPE, #WEACT_REVERSE_LANDSCAPE
+          DisplayWidth = #WEACT_DISPLAY_WIDTH
+          DisplayHeight = #WEACT_DISPLAY_HEIGHT
+      EndSelect
+      
+      BufferSize = DisplayWidth * DisplayHeight * 2
+      Delay(200)
+      
+      If WeActDisplay\FrameBuffer
+        FreeMemory(WeActDisplay\FrameBuffer)
+      EndIf
+      If WeActDisplay\BackBuffer
+        FreeMemory(WeActDisplay\BackBuffer)
+      EndIf
+      
+      WeActDisplay\FrameBuffer = AllocateMemory(BufferSize)
+      WeActDisplay\BackBuffer = AllocateMemory(BufferSize)
+      
+      If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
+        FillMemory(WeActDisplay\FrameBuffer, BufferSize, 0)
+        FillMemory(WeActDisplay\BackBuffer, BufferSize, 0)
+        ProcedureReturn #True
+      Else
+        DisplayWidth = #WEACT_DISPLAY_WIDTH
+        DisplayHeight = #WEACT_DISPLAY_HEIGHT
+        BufferSize = #WEACT_BUFFER_SIZE
+        ProcedureReturn #False
+      EndIf
     EndIf
   EndIf
   ProcedureReturn #False
@@ -614,6 +952,23 @@ Procedure.i WeAct_IsConnected()
   ProcedureReturn WeActDisplay\IsConnected
 EndProcedure
 
+Procedure.i WeAct_GetDisplayWidth()
+  ProcedureReturn DisplayWidth
+EndProcedure
+
+Procedure.i WeAct_GetDisplayHeight()
+  ProcedureReturn DisplayHeight
+EndProcedure
+
+Procedure WeAct_CleanupFonts()
+  ForEach FontCache()
+    If FontCache()\FontID
+      FreeFont(FontCache()\FontID)
+    EndIf
+  Next
+  ClearMap(FontCache())
+EndProcedure
+
 ; =============================================
 ; { ДЕСТРУКТОР }
 ; =============================================
@@ -631,8 +986,7 @@ AddWindowTimer(0, 0, 1000)
 BindEvent(#PB_Event_Timer, @WeAct_Cleanup())
 
 ; IDE Options = PureBasic 6.21 (Windows - x86)
-; IDE Options = PureBasic 6.21 (Windows - x86)
-; CursorPosition = 632
-; FirstLine = 582
-; Folding = ------
+; CursorPosition = 75
+; FirstLine = 42
+; Folding = --------
 ; EnableXP
