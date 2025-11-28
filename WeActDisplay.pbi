@@ -1010,3 +1010,4 @@ Procedure WeAct_Cleanup()
   WeAct_CleanupFonts()
   WeAct_Close()
 EndProcedure
+
