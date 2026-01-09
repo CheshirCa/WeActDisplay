@@ -1,6 +1,6 @@
 # WeActCLI - Console Text Display Utility for WeAct FS Display
 
-#(русская версия ниже)
+# (русская версия ниже)
 
 A command-line utility for displaying text on WeAct FS displays via COM port with support for multiple display modes.
 
