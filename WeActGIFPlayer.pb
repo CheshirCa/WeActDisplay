@@ -1,16 +1,8 @@
-﻿; =============================================
-; WeAct Display GIF Player for Windows
-; Version 1.1
-; 
-; Использование: WeActGIFPlayer.exe <путь_к_gif> [скорость] [порт] [loop]
-; Пример: WeActGIFPlayer.exe "C:\anim.gif" 1.0 COM3 loop
-; 
-; Параметры:
-;   путь_к_gif  - путь к анимированному GIF файлу
-;   скорость    - множитель скорости (0.1-5.0, по умолчанию 1.0)
-;   порт        - COM порт дисплея (по умолчанию COM3)
-;   loop        - зациклить воспроизведение (если указано)
 ; =============================================
+; WeAct Display GIF Player for Windows
+; Version 1.2
+; =============================================
+
 
 IncludeFile "WeActDisplay.pbi"  ; Подключаем вашу библиотеку
 OpenConsole()
@@ -250,7 +242,9 @@ Procedure Cleanup()
   ; Закрываем дисплей
   WeAct_Cleanup()
   
+  If verbose
   PrintN("Очистка завершена")
+    EndIf
 EndProcedure
 
 Procedure SignalHandler()
@@ -499,8 +493,8 @@ Main()
 ; Executable = WeActGIFPlayer.exe
 ; IDE Options = PureBasic 6.21 (Windows - x86)
 ; ExecutableFormat = Console
-; CursorPosition = 301
-; FirstLine = 297
+; CursorPosition = 254
+; FirstLine = 216
 ; Folding = --
 ; EnableXP
 ; Executable = WeActGIFPlayer.exe
