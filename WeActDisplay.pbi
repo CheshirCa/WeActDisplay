@@ -1,6 +1,6 @@
 ; =============================================
 ; WeAct Display FS Library for PureBasic
-; Version 4.0 - Professional Edition
+; Version 5.0 - Professional Edition
 ; 
 ; Supports WeAct Display FS 0.96-inch (160x80) via serial port
 ; 
@@ -42,15 +42,14 @@ EndEnumeration
 
 ; { Predefined Colors for BRG565 Format }
 ; Note: Display uses BRG565 (Blue-Red-Green) not RGB565
-#WEACT_RED    = $07C0    ; BRG: 00000 11111 000000
-#WEACT_GREEN  = $001F    ; BRG: 00000 00000 011111
-#WEACT_BLUE   = $F800    ; BRG: 11111 00000 000000
-#WEACT_WHITE  = $FFFF    ; BRG: 11111 11111 111111
-#WEACT_BLACK  = $0000    ; BRG: 00000 00000 000000
-#WEACT_YELLOW = $07FF    ; BRG: 00000 11111 111111
-#WEACT_CYAN   = $F81F    ; BRG: 11111 00000 111111
-#WEACT_MAGENTA = $FFE0   ; BRG: 11111 11111 000000
-
+#WEACT_RED    = $F800    ; RGB: 11111 00000 00000
+#WEACT_GREEN  = $07E0    ; RGB: 00000 111111 00000  
+#WEACT_BLUE   = $001F    ; RGB: 00000 00000 11111
+#WEACT_WHITE  = $FFFF    ; RGB: 11111 11111 11111
+#WEACT_BLACK  = $0000    ; RGB: 00000 00000 00000
+#WEACT_YELLOW = $FFE0    ; RGB: 11111 11111 00000
+#WEACT_CYAN   = $07FF    ; RGB: 00000 11111 11111
+#WEACT_MAGENTA = $F81F   ; RGB: 11111 00000 11111
 ; { Data Structures }
 
 ; Main display structure
@@ -101,22 +100,29 @@ Declare WeAct_SetOrientation(Orientation)
 ; { БАЗОВЫЕ ФУНКЦИИ }
 ; =============================================
 
-Procedure.i RGBToRGB565(r, g, b)
+Procedure.i RGBToRGB565_Fixed(r, g, b)
   ; Нормализуем значения
   r = r & $FF
   g = g & $FF  
   b = b & $FF
   
-  ; Преобразуем в BRG565 (Синий, Красный, Зеленый)
+  ; RGB565: RRRRR GGGGGG BBBBB
   Protected r5 = (r >> 3) & $1F    ; 5 бит красного
-  Protected g6 = (g >> 2) & $3F    ; 6 бит зеленого  
+  Protected g6 = (g >> 2) & $3F    ; 6 бит зеленого
   Protected b5 = (b >> 3) & $1F    ; 5 бит синего
   
-  ; Формируем цвет в порядке: BBBBBRRRRRGGGGGG
-  Protected brg565 = (b5 << 11) | (r5 << 6) | g6
+  ; Формируем цвет: (r5 << 11) | (g6 << 5) | b5
+  Protected rgb565 = (r5 << 11) | (g6 << 5) | b5
   
-  ProcedureReturn brg565
+  ProcedureReturn rgb565
 EndProcedure
+
+; Заменяем старую функцию на исправленную
+Macro RGBToRGB565(r, g, b)
+  RGBToRGB565_Fixed(r, g, b)
+EndMacro
+
+
 
 Procedure SendCommand(*Data, Length)
   If WeActDisplay\IsConnected
@@ -228,8 +234,8 @@ Procedure WeAct_DrawPixelBuffer(x, y, Color)
   
   Protected offset = (y * WeActDisplay\DisplayWidth + x) * 2
   Protected *ptr = WeActDisplay\BackBuffer + offset
-  PokeA(*ptr, Color >> 8)
-  PokeA(*ptr + 1, Color & $FF)
+ PokeA(*ptr, Color & $FF)      ; Младший байт
+ PokeA(*ptr + 1, Color >> 8)   ; Старший байт
 EndProcedure
 
 Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
@@ -439,49 +445,63 @@ Procedure WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontNam
   If WeActDisplay\BackBuffer = 0 : ProcedureReturn : EndIf
   If Text = "" : ProcedureReturn : EndIf
   
-  Protected fontID, tempImage
-  
-  fontID = GetCachedFont(FontName, FontSize)
-  If fontID = #PB_Default
-    fontID = LoadFont(#PB_Any, FontName, FontSize)
-    If Not fontID
-      ProcedureReturn
-    EndIf
+  ; Загружаем шрифт
+  Protected fontID = LoadFont(#PB_Any, FontName, FontSize)
+  If Not fontID
+    ProcedureReturn
   EndIf
   
-  ; Создаем временное изображение для рендеринга текста
-  Protected maxWidth = WeActDisplay\DisplayWidth
-  Protected maxHeight = WeActDisplay\DisplayHeight
+  ; Измеряем текст
+  Protected textWidth = 0, textHeight = 0
+  Protected measureImage = CreateImage(#PB_Any, 1, 1)
   
-  tempImage = CreateImage(#PB_Any, maxWidth, maxHeight, 24, #Black)
-  If tempImage
-    If StartDrawing(ImageOutput(tempImage))
+  If measureImage And StartDrawing(ImageOutput(measureImage))
+    DrawingFont(FontID(fontID))
+    textWidth = TextWidth(Text)
+    textHeight = TextHeight(Text)
+    StopDrawing()
+    FreeImage(measureImage)
+  EndIf
+  
+  If textWidth <= 0 Or textHeight <= 0
+    FreeFont(fontID)
+    ProcedureReturn
+  EndIf
+  
+  ; === ИСПРАВЛЕНИЕ: Используем 24-bit вместо 32-bit ===
+  Protected renderImage = CreateImage(#PB_Any, textWidth + 4, textHeight + 4, 24, RGB(0, 0, 0))
+  If renderImage
+    ; Рендерим текст
+    If StartDrawing(ImageOutput(renderImage))
       DrawingFont(FontID(fontID))
-      DrawingMode(#PB_2DDrawing_Transparent)
-      DrawText(x, y, Text, RGB(255, 255, 255))
+      DrawingMode(#PB_2DDrawing_Transparent)  ; Важно!
+      DrawText(2, 2, Text, RGB(255, 255, 255))
       StopDrawing()
       
-      ; Копируем пиксели текста на дисплей
-      If StartDrawing(ImageOutput(tempImage))
-        Protected sourceX, sourceY, pixelColor, brightness
+      ; Копируем на дисплей
+      If StartDrawing(ImageOutput(renderImage))
+        Protected srcX, srcY, pixelColor, brightness
         
-        For sourceY = 0 To maxHeight - 1
-          For sourceX = 0 To maxWidth - 1
-            pixelColor = Point(sourceX, sourceY)
-            brightness = Red(pixelColor)
+        For srcY = 0 To textHeight + 3
+          For srcX = 0 To textWidth + 3
+            pixelColor = Point(srcX, srcY)
+            brightness = Red(pixelColor)  ; В градациях серого R=G=B
             
-            If brightness > 30
-              WeAct_DrawPixelBuffer(sourceX, sourceY, Color)
+            If brightness > 30  ; Не черный
+              WeAct_DrawPixelBuffer(x + srcX - 2, y + srcY - 2, Color)
             EndIf
           Next
         Next
+        
         StopDrawing()
       EndIf
-      FreeImage(tempImage)
+      
+      FreeImage(renderImage)
     EndIf
   EndIf
+  
+  FreeFont(fontID)
 EndProcedure
-
 Procedure WeAct_DrawTextSmall(x, y, Text.s, Color)
   WeAct_DrawTextSystemFont(x, y, Text, Color, 8, "Arial")
 EndProcedure
@@ -493,6 +513,7 @@ EndProcedure
 Procedure WeAct_DrawTextLarge(x, y, Text.s, Color)
   WeAct_DrawTextSystemFont(x, y, Text, Color, 16, "Arial")
 EndProcedure
+
 
 ; =============================================
 ; { ПЕРЕНОС ТЕКСТА }
@@ -806,13 +827,20 @@ Procedure.s WeAct_GetSupportedImageFormats()
   ProcedureReturn "BMP, JPEG, PNG, TIFF, TGA"
 EndProcedure
 
+; =============================================
+; ИСПРАВЛЕННАЯ WeAct_LoadImageToBuffer
+; =============================================
+
+; =============================================
+; ОКОНЧАТЕЛЬНО ИСПРАВЛЕННАЯ WeAct_LoadImageToBuffer
+; =============================================
+
 Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
   If WeActDisplay\BackBuffer = 0 : ProcedureReturn #False : EndIf
   
-  Protected originalImage, resizedImage
-  Protected originalWidth, originalHeight
+  Protected originalImage, originalWidth, originalHeight
   Protected targetWidth, targetHeight
-  Protected destX, destY, pixelColor, r, g, b
+  Protected scaleX.f, scaleY.f
   
   If FileSize(FileName) <= 0
     WeActDisplay\LastError = "Image file not found: " + FileName
@@ -828,15 +856,18 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
   originalWidth = ImageWidth(originalImage)
   originalHeight = ImageHeight(originalImage)
   
+  ; Определяем целевые размеры
   If Width = -1 And Height = -1
     targetWidth = originalWidth
     targetHeight = originalHeight
   ElseIf Width = -1
     targetHeight = Height
-    targetWidth = originalWidth * (targetHeight / originalHeight)
+    scaleY = targetHeight / originalHeight
+    targetWidth = originalWidth * scaleY
   ElseIf Height = -1
     targetWidth = Width
-    targetHeight = originalHeight * (targetWidth / originalWidth)
+    scaleX = targetWidth / originalWidth
+    targetHeight = originalHeight * scaleX
   Else
     targetWidth = Width
     targetHeight = Height
@@ -845,6 +876,7 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
   targetWidth = Int(targetWidth)
   targetHeight = Int(targetHeight)
   
+  ; Ограничиваем размерами дисплея
   If targetWidth > WeActDisplay\DisplayWidth
     targetWidth = WeActDisplay\DisplayWidth
   EndIf
@@ -852,6 +884,7 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
     targetHeight = WeActDisplay\DisplayHeight
   EndIf
   
+  ; Корректируем координаты
   If x < 0 : x = 0 : EndIf
   If y < 0 : y = 0 : EndIf
   If x + targetWidth > WeActDisplay\DisplayWidth
@@ -867,21 +900,32 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
     ProcedureReturn #False
   EndIf
   
-  resizedImage = CreateImage(#PB_Any, targetWidth, targetHeight)
-  If Not resizedImage
+  ; === ВАЖНО: Предупреждение о аппаратных ограничениях ===
+  If targetWidth <> originalWidth Or targetHeight <> originalHeight
+    Debug "ВНИМАНИЕ: Дисплей WeAct FS имеет аппаратные ограничения на масштабирование."
+    Debug "Рекомендуется загружать изображения в оригинальном размере или"
+    Debug "использовать простое масштабирование (2x, 4x, 8x)."
+  EndIf
+  
+  ; Создаем временное изображение нужного размера
+  Protected tempImage = CreateImage(#PB_Any, targetWidth, targetHeight, 24)
+  If Not tempImage
     FreeImage(originalImage)
     WeActDisplay\LastError = "Failed to create resized image"
     ProcedureReturn #False
   EndIf
   
-  If StartDrawing(ImageOutput(resizedImage))
-    DrawingMode(#PB_2DDrawing_Default)
+  ; Масштабируем
+  If StartDrawing(ImageOutput(tempImage))
     Box(0, 0, targetWidth, targetHeight, RGB(0, 0, 0))
     DrawImage(ImageID(originalImage), 0, 0, targetWidth, targetHeight)
     StopDrawing()
   EndIf
   
-  If StartDrawing(ImageOutput(resizedImage))
+  ; Копируем пиксели на дисплей
+  If StartDrawing(ImageOutput(tempImage))
+    Protected destX.i, destY.i, pixelColor, r.i, g.i, b.i
+    
     For destY = 0 To targetHeight - 1
       For destX = 0 To targetWidth - 1
         pixelColor = Point(destX, destY)
@@ -891,13 +935,15 @@ Procedure WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
         WeAct_DrawPixelBuffer(x + destX, y + destY, RGBToRGB565(r, g, b))
       Next
     Next
+    
     StopDrawing()
   EndIf
   
-  FreeImage(resizedImage)
+  FreeImage(tempImage)
   FreeImage(originalImage)
   ProcedureReturn #True
 EndProcedure
+
 
 Procedure WeAct_LoadImageFullScreen(FileName.s)
   Protected originalImage, targetWidth, targetHeight
@@ -914,6 +960,7 @@ Procedure WeAct_LoadImageFullScreen(FileName.s)
     ProcedureReturn #False
   EndIf
   
+  ; Вычисляем масштаб для заполнения экрана с сохранением пропорций
   scale = WeActDisplay\DisplayWidth / ImageWidth(originalImage)
   If (WeActDisplay\DisplayHeight / ImageHeight(originalImage)) < scale
     scale = WeActDisplay\DisplayHeight / ImageHeight(originalImage)
@@ -922,10 +969,13 @@ Procedure WeAct_LoadImageFullScreen(FileName.s)
   targetWidth = ImageWidth(originalImage) * scale
   targetHeight = ImageHeight(originalImage) * scale
   
+  ; Центрируем
   x = (WeActDisplay\DisplayWidth - targetWidth) / 2
   y = (WeActDisplay\DisplayHeight - targetHeight) / 2
   
   FreeImage(originalImage)
+  
+  ; Используем исправленную основную функцию
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
 EndProcedure
 
@@ -958,11 +1008,74 @@ Procedure WeAct_LoadImageCentered(FileName.s, Width.i = -1, Height.i = -1)
     targetHeight = Height
   EndIf
   
+  ; Ограничиваем размеры
+  If targetWidth > WeActDisplay\DisplayWidth
+    targetWidth = WeActDisplay\DisplayWidth
+  EndIf
+  If targetHeight > WeActDisplay\DisplayHeight
+    targetHeight = WeActDisplay\DisplayHeight
+  EndIf
+  
+  ; Центрируем
   x = (WeActDisplay\DisplayWidth - targetWidth) / 2
   y = (WeActDisplay\DisplayHeight - targetHeight) / 2
   
   FreeImage(originalImage)
+  
+  ; Используем исправленную основную функцию
   ProcedureReturn WeAct_LoadImageToBuffer(x, y, FileName, targetWidth, targetHeight)
+EndProcedure
+
+; НОВАЯ ФУНКЦИЯ: Быстрая загрузка без масштабирования (для производительности)
+Procedure WeAct_LoadImageFast(x, y, FileName.s)
+  If WeActDisplay\BackBuffer = 0 : ProcedureReturn #False : EndIf
+  
+  Protected originalImage, originalWidth, originalHeight
+  Protected srcX, srcY, pixelColor, r, g, b
+  
+  If FileSize(FileName) <= 0
+    WeActDisplay\LastError = "Image file not found: " + FileName
+    ProcedureReturn #False
+  EndIf
+  
+  originalImage = LoadImage(#PB_Any, FileName)
+  If Not originalImage
+    WeActDisplay\LastError = "Failed to load image: " + FileName
+    ProcedureReturn #False
+  EndIf
+  
+  originalWidth = ImageWidth(originalImage)
+  originalHeight = ImageHeight(originalImage)
+  
+  ; Ограничиваем размерами
+  If x + originalWidth > WeActDisplay\DisplayWidth
+    originalWidth = WeActDisplay\DisplayWidth - x
+  EndIf
+  If y + originalHeight > WeActDisplay\DisplayHeight
+    originalHeight = WeActDisplay\DisplayHeight - y
+  EndIf
+  
+  If originalWidth <= 0 Or originalHeight <= 0
+    FreeImage(originalImage)
+    ProcedureReturn #False
+  EndIf
+  
+  ; Быстрое копирование без масштабирования
+  If StartDrawing(ImageOutput(originalImage))
+    For srcY = 0 To originalHeight - 1
+      For srcX = 0 To originalWidth - 1
+        pixelColor = Point(srcX, srcY)
+        r = Red(pixelColor)
+        g = Green(pixelColor)
+        b = Blue(pixelColor)
+        WeAct_DrawPixelBuffer(x + srcX, y + srcY, RGBToRGB565(r, g, b))
+      Next
+    Next
+    StopDrawing()
+  EndIf
+  
+  FreeImage(originalImage)
+  ProcedureReturn #True
 EndProcedure
 
 ; =============================================
@@ -1267,7 +1380,7 @@ Procedure WeAct_Cleanup()
 EndProcedure
 
 ; IDE Options = PureBasic 6.21 (Windows - x86)
-; CursorPosition = 1172
-; FirstLine = 1168
+; CursorPosition = 237
+; FirstLine = 228
 ; Folding = ----------
 ; EnableXP
