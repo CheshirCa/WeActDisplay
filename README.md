@@ -1,4 +1,3 @@
-```markdown
 # WeAct Display FS Library for PureBasic v5.0
 
 ![WeAct 0.96" Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
@@ -760,6 +759,4 @@ EndIf
 
 **Версия / Version:** 5.1
 **Совместимость / Compatibility:** PureBasic 6.20+, WeAct Display FS 0.96-inch (160x80)  
-**Формат цвета / Color Format:** RGB565  
 **GitHub:** https://github.com/CheshirCa/WeActDisplay
-```
