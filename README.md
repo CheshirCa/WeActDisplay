@@ -1,270 +1,149 @@
-# WeAct Display FS Library for PureBasic v5.0 - Professional Edition
+```markdown
+# WeAct Display FS Library for PureBasic v5.0
 
 ![WeAct 0.96" Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
 
-Улучшенная профессиональная библиотека для работы с дисплеем WeAct Display FS 0.96-inch (160x80) через последовательный порт.
+Библиотека для работы с дисплеем WeAct Display FS 0.96-inch (160x80) через последовательный порт.  
+Library for working with WeAct Display FS 0.96-inch (160x80) via serial port.
 
 **GitHub:** https://github.com/CheshirCa/WeActDisplay
 
-Enhanced professional library for working with WeAct Display FS 0.96-inch (160x80) via serial port.
+## ⚠️ Важное замечание / Important Note
 
-## ⚠️ ВАЖНОЕ ЗАМЕЧАНИЕ / IMPORTANT NOTE
+**Русский:**  
+Дисплей WeAct FS использует формат **RGB565** (Red-Green-Blue). Все функции библиотеки работают с этим форматом. Предопределенные цвета (`#WEACT_RED`, `#WEACT_GREEN`, и т.д.) заданы в правильном формате.
 
-**Русский:** 
-Дисплей WeAct FS использует формат **BRG565** (Blue-Red-Green), а не стандартный RGB565. Все функции библиотеки автоматически преобразуют цвета в правильный формат. Предопределенные цвета (`#WEACT_RED`, `#WEACT_GREEN`, и т.д.) уже корректно настроены для BRG565.
+**English:**  
+WeAct FS display uses **RGB565** format (Red-Green-Blue). All library functions work with this format. Predefined colors (`#WEACT_RED`, `#WEACT_GREEN`, etc.) are set in the correct format.
 
-**English:**
-WeAct FS display uses **BRG565** format (Blue-Red-Green), not standard RGB565. All library functions automatically convert colors to the correct format. Predefined colors (`#WEACT_RED`, `#WEACT_GREEN`, etc.) are already correctly configured for BRG565.
+## 📋 Полный список функций / Complete Function List
 
-## 🆕 Что нового в версии 5.0 - Professional Edition
+### 🔧 Инициализация и завершение / Initialization and Cleanup
 
-**Русский:**
-- ✅ **ПРОФЕССИОНАЛЬНОЕ ИЗДАНИЕ:** Полный рефакторинг кода с улучшенной архитектурой
-- ✅ **ИСПРАВЛЕНО:** Корректное преобразование RGB в BRG565 с новой функцией `RGBToRGB565_Fixed()`
-- ✅ **ИСПРАВЛЕНО:** Рендеринг текста теперь использует 24-bit изображения вместо 32-bit
-- ✅ **ИСПРАВЛЕНО:** Полная обработка аппаратных ограничений дисплея при масштабировании изображений
-- ✅ **НОВОЕ:** Функция `WeAct_LoadImageFast()` для максимальной производительности
-- ✅ **НОВОЕ:** Подробные предупреждения о лимитах масштабирования в отладочном режиме
-- ✅ **УЛУЧШЕНО:** Оптимизированное управление памятью и буферами
-- ✅ **УЛУЧШЕНО:** Расширенная диагностика ошибок
-- ✅ **СОХРАНЕНО:** Все функции и улучшения из версии 4.0
+#### WeAct_Init(PortName.s = "COM3")
+**Русский:** Инициализирует дисплей на указанном COM-порту. Автоматически устанавливает ландшафтную ориентацию и максимальную яркость.
 
-**English:**
-- ✅ **PROFESSIONAL EDITION:** Complete code refactoring with improved architecture
-- ✅ **FIXED:** Correct RGB to BRG565 conversion with new `RGBToRGB565_Fixed()` function
-- ✅ **FIXED:** Text rendering now uses 24-bit images instead of 32-bit
-- ✅ **FIXED:** Full handling of display hardware limitations when scaling images
-- ✅ **NEW:** `WeAct_LoadImageFast()` function for maximum performance
-- ✅ **NEW:** Detailed scaling limit warnings in debug mode
-- ✅ **IMPROVED:** Optimized memory and buffer management
-- ✅ **IMPROVED:** Extended error diagnostics
-- ✅ **PRESERVED:** All functions and improvements from version 4.0
-
-## 🌟 Основные возможности / Core Features
-
-**Русский:**
-- ✅ Поддержка дисплея WeAct Display FS 0.96-inch (160x80)
-- ✅ Автоматическое преобразование цветов в формат BRG565
-- ✅ Полная поддержка кириллицы и Unicode
-- ✅ Двойная буферизация для плавной анимации без мерцания
-- ✅ Все ориентации экрана + режим автоповорота (ROTATE)
-- ✅ Загрузка изображений (BMP, JPEG, PNG, TIFF, TGA) с оптимизацией
-- ✅ Плавный скроллинг текста с накоплением дробных пикселей
-- ✅ Расширенные графические примитивы: линии, прямоугольники, окружности
-- ✅ Прогресс-бары, графики, индикаторы загрузки
-- ✅ Управление яркостью с плавными переходами
-- ✅ Кэширование шрифтов для максимальной производительности
-- ✅ Расширенная обработка ошибок с информативными сообщениями
-
-**English:**
-- ✅ Support for WeAct Display FS 0.96-inch (160x80)
-- ✅ Automatic color conversion to BRG565 format
-- ✅ Full Cyrillic and Unicode support
-- ✅ Double buffering for smooth flicker-free animation
-- ✅ All screen orientations + auto-rotation mode (ROTATE)
-- ✅ Image loading (BMP, JPEG, PNG, TIFF, TGA) with optimization
-- ✅ Smooth text scrolling with fractional pixel accumulation
-- ✅ Extended graphics primitives: lines, rectangles, circles
-- ✅ Progress bars, graphs, loading indicators
-- ✅ Brightness control with smooth transitions
-- ✅ Font caching for maximum performance
-- ✅ Extended error handling with informative messages
-
-## 📋 Содержание / Table of Contents
-
-- [Важное замечание](#-важное-замечание--important-note)
-- [Что нового](#-что-нового-в-версии-50---professional-edition)
-- [Основные возможности](#-основные-возможности--core-features)
-- [Установка](#-установка--installation)
-- [Инициализация](#-инициализация--initialization)
-- [Работа с цветами](#-работа-с-цветами--color-operations)
-- [Базовые функции](#-базовые-функции--basic-functions)
-- [Работа с текстом](#-работа-с-текстом--text-operations)
-- [Графические функции](#-графические-функции--graphics-functions)
-- [Скроллинг](#-скроллинг-текста--text-scrolling)
-- [Изображения](#-работа-с-изображениями--image-operations)
-- [Управление дисплеем](#-управление-дисплеем--display-control)
-- [Новые функции v5.0](#-новые-функции-v50--new-functions-v50)
-- [Вспомогательные функции](#-вспомогательные-функции--utility-functions)
-- [Примеры](#-примеры--examples)
-- [Исправление ошибок](#-исправленные-проблемы--fixed-issues)
-- [Производительность](#-производительность--performance)
-- [Отладка](#-отладка--debugging)
-- [Лицензия](#-лицензия--license)
-- [Поддержка](#-поддержка--support)
-
-## 🔧 Установка / Installation
-
-**Русский:**
-1. Скопируйте файл `WeActDisplay.pbi` в ваш проект PureBasic
-2. Подключите библиотеку: `XIncludeFile "WeActDisplay.pbi"`
-3. Подключите дисплей к COM-порту (по умолчанию COM3)
-4. Убедитесь, что установлен PureBasic 6.21 или новее
-
-**English:**
-1. Copy `WeActDisplay.pbi` to your PureBasic project
-2. Include the library: `XIncludeFile "WeActDisplay.pbi"`
-3. Connect the display to COM port (default COM3)
-4. Ensure PureBasic 6.21 or newer is installed
-
-## 🚀 Инициализация / Initialization
-
-### WeAct_Init(PortName.s = "COM3")
-**Русский:** Инициализирует дисплей с улучшенной обработкой ошибок и автоматической настройкой.
-
-**English:** Initializes the display with improved error handling and automatic configuration.
+**English:** Initializes the display on the specified COM port. Automatically sets landscape orientation and maximum brightness.
 
 ```purebasic
-; Подключение к COM3 (по умолчанию) / Connect to COM3 (default)
-If WeAct_Init()
+; Пример использования / Usage example
+If WeAct_Init("COM3")
   Debug "Дисплей инициализирован / Display initialized"
 Else
   Debug "Ошибка: " + WeAct_GetLastError()
 EndIf
-
-; Подключение к определенному порту / Connect to specific port
-If WeAct_Init("COM5")
-  Debug "Успешное подключение к COM5 / Successful connection to COM5"
-EndIf
 ```
 
-### WeAct_Close()
+#### WeAct_Close()
 **Русский:** Закрывает соединение с дисплеем и освобождает ресурсы.
 
-**English:** Closes the display connection and releases resources.
+**English:** Closes the connection to the display and releases resources.
 
-### WeAct_Cleanup()
-**Русский:** Полная очистка всех ресурсов библиотеки, включая кэш шрифтов.
+```purebasic
+WeAct_Close()
+```
 
-**English:** Complete cleanup of all library resources including font cache.
+#### WeAct_Cleanup()
+**Русский:** Полная очистка всех ресурсов библиотеки, включая кэш шрифтов и буферы.
+
+**English:** Complete cleanup of all library resources including font cache and buffers.
 
 ```purebasic
 WeAct_Cleanup()
 ```
 
-## 🎨 Работа с цветами / Color Operations
+#### WeAct_InitImageDecoders()
+**Русский:** Инициализирует декодеры изображений (JPEG, PNG, TIFF, TGA). Вызывается автоматически в WeAct_Init().
 
-### Важно: Формат BRG565
-Дисплей использует нестандартный формат BRG565. Библиотека предоставляет две функции для работы с цветами:
-
-```purebasic
-; 1. Исправленная функция (рекомендуется для точности)
-color = RGBToRGB565_Fixed(255, 0, 0)  ; Красный / Red
-
-; 2. Макрос для обратной совместимости
-color = RGBToRGB565(255, 0, 0)        ; Автоматически вызывает исправленную функцию
-
-; Преобразование собственных цветов
-myColor = RGBToRGB565(128, 64, 200)   ; Пользовательский цвет / Custom color
-```
-
-### Предопределенные цвета / Predefined Colors
-```purebasic
-; ВАЖНО: Эти значения уже в формате BRG565!
-#WEACT_RED     = $F800    ; Красный / Red
-#WEACT_GREEN   = $07E0    ; Зеленый / Green  
-#WEACT_BLUE    = $001F    ; Синий / Blue
-#WEACT_WHITE   = $FFFF    ; Белый / White
-#WEACT_BLACK   = $0000    ; Черный / Black
-#WEACT_YELLOW  = $FFE0    ; Желтый / Yellow
-#WEACT_CYAN    = $07FF    ; Голубой / Cyan
-#WEACT_MAGENTA = $F81F    ; Пурпурный / Magenta
-```
-
-## 🎨 Базовые функции / Basic Functions
-
-### WeAct_ClearBuffer(Color = #WEACT_BLACK)
-**Русский:** Очищает буфер указанным цветом. Работает корректно для любой ориентации.
-
-**English:** Clears the buffer with specified color. Works correctly for any orientation.
+**English:** Initializes image decoders (JPEG, PNG, TIFF, TGA). Called automatically in WeAct_Init().
 
 ```purebasic
-WeAct_ClearBuffer(#WEACT_BLACK)
-WeAct_ClearBuffer(#WEACT_WHITE)
-WeAct_ClearBuffer(RGBToRGB565(128, 128, 128))  ; Серый / Gray
+WeAct_InitImageDecoders()  ; Обычно не требуется вызывать вручную / Usually not needed to call manually
 ```
 
-### WeAct_UpdateDisplay()
-**Русский:** Обновляет дисплей, отображая содержимое буфера с двойной буферизацией.
+### 🎨 Работа с цветами / Color Operations
 
-**English:** Updates the display with buffer contents using double buffering.
+#### RGBToRGB565_Fixed(r, g, b)
+**Русский:** Конвертирует RGB значения (0-255) в формат RGB565 с правильным распределением битов.
+
+**English:** Converts RGB values (0-255) to RGB565 format with correct bit distribution.
 
 ```purebasic
-WeAct_ClearBuffer(#WEACT_BLACK)
-WeAct_DrawTextMedium(10, 10, "Hello World", #WEACT_WHITE)
-WeAct_UpdateDisplay()
+; Конвертация цвета / Color conversion
+color = RGBToRGB565_Fixed(255, 0, 0)      ; Красный / Red
+color = RGBToRGB565_Fixed(0, 255, 0)      ; Зеленый / Green
+color = RGBToRGB565_Fixed(128, 64, 200)   ; Пользовательский цвет / Custom color
 ```
 
-## 📝 Работа с текстом / Text Operations
+#### RGBToRGB565(r, g, b) (макрос / macro)
+**Русский:** Макрос для обратной совместимости, вызывает RGBToRGB565_Fixed().
 
-### WeAct_DrawTextSmall/Medium/Large(x, y, Text.s, Color)
-**Русский:** Рисует текст предопределенных размеров. Полная поддержка кириллицы.
-
-**English:** Draws text in predefined sizes. Full Cyrillic support.
+**English:** Macro for backward compatibility, calls RGBToRGB565_Fixed().
 
 ```purebasic
-WeAct_DrawTextSmall(10, 5, "Маленький текст", #WEACT_WHITE)
-WeAct_DrawTextMedium(10, 20, "Средний текст", #WEACT_GREEN)
-WeAct_DrawTextLarge(10, 40, "Большой", #WEACT_BLUE)
+; То же самое что RGBToRGB565_Fixed() / Same as RGBToRGB565_Fixed()
+color = RGBToRGB565(255, 128, 64)
 ```
 
-### WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize, FontName.s)
-**Русский:** Рисует текст с указанным шрифтом и размером. **Исправлено:** Теперь использует 24-bit рендеринг.
+### 📊 Буферизация / Buffering
 
-**English:** Draws text with specified font and size. **Fixed:** Now uses 24-bit rendering.
+#### WeAct_SwapBuffers()
+**Русский:** Переключает фронтальный и задний буферы (двойная буферизация).
+
+**English:** Swaps front and back buffers (double buffering).
 
 ```purebasic
-WeAct_DrawTextSystemFont(10, 10, "Custom", #WEACT_RED, 14, "Arial")
-WeAct_DrawTextSystemFont(10, 30, "Tahoma", #WEACT_YELLOW, 10, "Tahoma")
+WeAct_SwapBuffers()  ; Используется внутри WeAct_UpdateDisplay() / Used inside WeAct_UpdateDisplay()
 ```
 
-### WeAct_GetTextWidth/Height(Text.s, FontSize, FontName.s)
-**Русский:** Возвращает размеры текста для точного позиционирования.
+#### WeAct_ClearBuffer(Color = #WEACT_BLACK)
+**Русский:** Очищает задний буфер указанным цветом.
 
-**English:** Returns text dimensions for precise positioning.
+**English:** Clears the back buffer with the specified color.
 
 ```purebasic
-width = WeAct_GetTextWidth("Hello", 12, "Arial")
-height = WeAct_GetTextHeight("Hello", 12, "Arial")
+WeAct_ClearBuffer(#WEACT_BLACK)     ; Черный фон / Black background
+WeAct_ClearBuffer(#WEACT_WHITE)     ; Белый фон / White background
+WeAct_ClearBuffer(RGBToRGB565(128, 128, 128))  ; Серый фон / Gray background
 ```
 
-## 🎨 Графические функции / Graphics Functions
+#### WeAct_DrawPixelBuffer(x, y, Color)
+**Русский:** Рисует пиксель в указанных координатах заднего буфера.
 
-### WeAct_DrawPixelBuffer(x, y, Color)
-**Русский:** Рисует отдельный пиксель указанным цветом.
-
-**English:** Draws a single pixel with specified color.
+**English:** Draws a pixel at specified coordinates in the back buffer.
 
 ```purebasic
 WeAct_DrawPixelBuffer(50, 40, #WEACT_RED)
+WeAct_DrawPixelBuffer(60, 40, RGBToRGB565(255, 128, 0))
 ```
 
-### WeAct_DrawLineBuffer(x1, y1, x2, y2, Color)
-**Русский:** Рисует линию (алгоритм Брезенхэма).
-
-**English:** Draws a line (Bresenham's algorithm).
-
-```purebasic
-WeAct_DrawLineBuffer(10, 10, 150, 70, #WEACT_WHITE)
-```
-
-### WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled)
+#### WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
 **Русский:** Рисует прямоугольник или заполненный прямоугольник.
 
 **English:** Draws a rectangle or filled rectangle.
 
 ```purebasic
-; Заполненный / Filled
+; Заполненный прямоугольник / Filled rectangle
 WeAct_DrawRectangleBuffer(10, 10, 50, 30, #WEACT_RED, #True)
 
-; Контур / Outline
+; Контур прямоугольника / Rectangle outline
 WeAct_DrawRectangleBuffer(70, 10, 50, 30, #WEACT_GREEN, #False)
 ```
 
-### WeAct_DrawCircleBuffer(cx, cy, radius, Color, Filled)
-**Русский:** Рисует окружность (алгоритм Брезенхэма).
+#### WeAct_DrawLineBuffer(x1, y1, x2, y2, Color)
+**Русский:** Рисует линию между двумя точками (алгоритм Брезенхэма).
 
-**English:** Draws a circle (Bresenham's algorithm).
+**English:** Draws a line between two points (Bresenham's algorithm).
+
+```purebasic
+WeAct_DrawLineBuffer(10, 10, 150, 70, #WEACT_WHITE)
+WeAct_DrawLineBuffer(150, 10, 10, 70, #WEACT_BLUE)
+```
+
+#### WeAct_DrawCircleBuffer(cx, cy, radius, Color, Filled = #False)
+**Русский:** Рисует окружность или заполненную окружность.
+
+**English:** Draws a circle or filled circle.
 
 ```purebasic
 ; Контур окружности / Circle outline
@@ -274,69 +153,233 @@ WeAct_DrawCircleBuffer(80, 40, 20, #WEACT_YELLOW, #False)
 WeAct_DrawCircleBuffer(120, 40, 15, #WEACT_CYAN, #True)
 ```
 
-## 🔄 Скроллинг текста / Text Scrolling
+### 🖥️ Вывод на дисплей / Display Output
 
-### ⚠️ ИСПРАВЛЕНО: Плавный скроллинг
+#### WeAct_FlushBuffer()
+**Русский:** Отправляет содержимое заднего буфера на физический дисплей.
 
-**Русский:** В версии 5.0 механизм скроллинга полностью оптимизирован. Движение плавное без рывков благодаря накоплению дробных пикселей.
-
-**English:** Version 5.0 has fully optimized scrolling mechanism. Movement is smooth without jerking thanks to fractional pixel accumulation.
-
-### WeAct_StartScrollText(Text.s, FontSize, Direction, Speed.f, Color, FontName.s)
-**Русский:** Запускает скроллинг текста. **Speed** в пикселях/секунду (float).
-
-**English:** Starts text scrolling. **Speed** in pixels/second (float).
+**English:** Sends back buffer content to the physical display.
 
 ```purebasic
-; Горизонтальный скроллинг / Horizontal scrolling
-WeAct_StartScrollText("Плавный скроллинг!", 12, #SCROLL_LEFT, 30.0, #WEACT_WHITE)
-
-; Медленный вертикальный / Slow vertical
-WeAct_StartScrollText("Вертикально", 12, #SCROLL_UP, 15.5, #WEACT_CYAN)
+If WeAct_FlushBuffer()
+  Debug "Буфер отправлен / Buffer sent"
+EndIf
 ```
 
-### Анимация скроллинга / Scrolling Animation
+#### WeAct_UpdateDisplay()
+**Русский:** Отправляет буфер на дисплей и переключает буферы. Основная функция для обновления экрана.
+
+**English:** Sends buffer to display and swaps buffers. Main function for screen updates.
+
 ```purebasic
-WeAct_StartScrollText("Smooth animation", 14, #SCROLL_LEFT, 40.0, #WEACT_GREEN)
+WeAct_ClearBuffer(#WEACT_BLACK)
+WeAct_DrawTextMedium(10, 10, "Hello", #WEACT_WHITE)
+WeAct_UpdateDisplay()  ; Показывает на экране / Shows on screen
+```
 
-For i = 1 To 200
-  WeAct_ClearBuffer(#WEACT_BLACK)
-  WeAct_UpdateScrollText()    ; Обновляем позицию / Update position
-  WeAct_DrawScrollText()      ; Рисуем текст / Draw text
-  WeAct_UpdateDisplay()
-  Delay(30)
-Next
+### 📝 Работа с текстом / Text Operations
 
+#### GetCachedFont(FontName.s, FontSize.i)
+**Русский:** Возвращает шрифт из кэша или загружает его. Внутренняя функция для оптимизации.
+
+**English:** Returns font from cache or loads it. Internal function for optimization.
+
+```purebasic
+; Обычно вызывается внутри других функций / Usually called inside other functions
+fontID = GetCachedFont("Arial", 12)
+```
+
+#### WeAct_GetTextWidth(Text.s, FontSize.i, FontName.s = "Arial")
+**Русский:** Возвращает ширину текста в пикселях для точного позиционирования.
+
+**English:** Returns text width in pixels for precise positioning.
+
+```purebasic
+width = WeAct_GetTextWidth("Hello World", 12, "Arial")
+Debug "Ширина текста: " + Str(width) + "px"
+```
+
+#### WeAct_GetTextHeight(Text.s, FontSize.i, FontName.s = "Arial")
+**Русский:** Возвращает высоту текста в пикселях.
+
+**English:** Returns text height in pixels.
+
+```purebasic
+height = WeAct_GetTextHeight("Hello", 12, "Arial")
+Debug "Высота текста: " + Str(height) + "px"
+```
+
+#### WeAct_DrawTextSystemFont(x, y, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
+**Русский:** Рисует текст с указанным шрифтом и размером. Поддерживает кириллицу.
+
+**English:** Draws text with specified font and size. Supports Cyrillic.
+
+```purebasic
+WeAct_DrawTextSystemFont(10, 10, "Привет мир!", #WEACT_WHITE, 12, "Arial")
+WeAct_DrawTextSystemFont(10, 30, "Hello World", #WEACT_GREEN, 14, "Tahoma")
+```
+
+#### WeAct_DrawTextSmall(x, y, Text.s, Color)
+**Русский:** Рисует мелкий текст (8px Arial).
+
+**English:** Draws small text (8px Arial).
+
+```purebasic
+WeAct_DrawTextSmall(10, 10, "Мелкий текст", #WEACT_WHITE)
+```
+
+#### WeAct_DrawTextMedium(x, y, Text.s, Color)
+**Русский:** Рисует средний текст (12px Arial).
+
+**English:** Draws medium text (12px Arial).
+
+```purebasic
+WeAct_DrawTextMedium(10, 30, "Средний текст", #WEACT_GREEN)
+```
+
+#### WeAct_DrawTextLarge(x, y, Text.s, Color)
+**Русский:** Рисует крупный текст (16px Arial).
+
+**English:** Draws large text (16px Arial).
+
+```purebasic
+WeAct_DrawTextLarge(10, 50, "Крупный текст", #WEACT_BLUE)
+```
+
+#### WeAct_DrawWrappedText(x, y, Width, Height, Text.s, Color, FontSize.i = 12, FontName.s = "Arial", AutoSize = #False)
+**Русский:** Рисует текст с автоматическим переносом слов в указанной области.
+
+**English:** Draws text with automatic word wrapping in specified area.
+
+```purebasic
+text$ = "Это длинный текст который будет автоматически перенесен на несколько строк в пределах указанной области."
+WeAct_DrawWrappedText(10, 10, 140, 60, text$, #WEACT_WHITE, 10, "Arial", #False)
+```
+
+#### WeAct_DrawWrappedTextAutoSize(x, y, Width, Height, Text.s, Color, FontName.s = "Arial")
+**Русский:** Рисует текст с авто-подбором размера шрифта чтобы поместиться в область.
+
+**English:** Draws text with auto-adjusting font size to fit area.
+
+```purebasic
+text$ = "Автоматический подбор размера шрифта"
+WeAct_DrawWrappedTextAutoSize(10, 10, 140, 60, text$, #WEACT_GREEN, "Arial")
+```
+
+#### WeAct_DrawWrappedTextFixed(x, y, Width, Height, Text.s, Color, FontSize.i = 12, FontName.s = "Arial")
+**Русский:** Рисует текст с фиксированным размером шрифта и переносом.
+
+**English:** Draws text with fixed font size and wrapping.
+
+```purebasic
+WeAct_DrawWrappedTextFixed(10, 10, 140, 60, "Текст с переносом", #WEACT_WHITE, 10, "Arial")
+```
+
+### 🔄 Скроллинг текста / Text Scrolling
+
+#### WeAct_StartScrollText(Text.s, FontSize.i = 12, Direction.i = #SCROLL_LEFT, Speed.f = 20.0, Color.i = #WEACT_WHITE, FontName.s = "Arial")
+**Русский:** Запускает плавный скроллинг текста с указанными параметрами.
+
+**English:** Starts smooth text scrolling with specified parameters.
+
+```purebasic
+WeAct_StartScrollText("Бегущая строка", 12, #SCROLL_LEFT, 30.0, #WEACT_WHITE, "Arial")
+WeAct_StartScrollText("Вертикальный скроллинг", 10, #SCROLL_UP, 15.5, #WEACT_CYAN, "Tahoma")
+```
+
+#### WeAct_StopScrollText()
+**Русский:** Останавливает скроллинг текста.
+
+**English:** Stops text scrolling.
+
+```purebasic
 WeAct_StopScrollText()
 ```
 
-## 🖼️ Работа с изображениями / Image Operations
+#### WeAct_UpdateScrollText()
+**Русский:** Обновляет позицию скроллируемого текста на основе прошедшего времени.
 
-### WeAct_LoadImageToBuffer(x, y, FileName.s, Width, Height)
-**Русский:** Загружает изображение с масштабированием. **Внимание:** Дисплей имеет аппаратные ограничения на масштабирование.
+**English:** Updates scrolling text position based on elapsed time.
 
-**English:** Loads image with scaling. **Note:** Display has hardware limitations for scaling.
+```purebasic
+; В игровом цикле / In game loop
+WeAct_UpdateScrollText()
+```
+
+#### WeAct_DrawScrollText()
+**Русский:** Рисует скроллируемый текст в текущей позиции.
+
+**English:** Draws scrolling text at current position.
+
+```purebasic
+WeAct_DrawScrollText()
+```
+
+#### WeAct_ScrollTextLeft(Text.s, Speed.f = 20.0, FontSize.i = 12, Color.i = #WEACT_WHITE)
+**Русский:** Запускает скроллинг текста влево.
+
+**English:** Starts left text scrolling.
+
+```purebasic
+WeAct_ScrollTextLeft("Скролл влево", 25.0, 12, #WEACT_WHITE)
+```
+
+#### WeAct_ScrollTextRight(Text.s, Speed.f = 20.0, FontSize.i = 12, Color.i = #WEACT_WHITE)
+**Русский:** Запускает скроллинг текста вправо.
+
+**English:** Starts right text scrolling.
+
+```purebasic
+WeAct_ScrollTextRight("Скролл вправо", 25.0, 12, #WEACT_GREEN)
+```
+
+#### WeAct_ScrollTextUp(Text.s, Speed.f = 20.0, FontSize.i = 12, Color.i = #WEACT_WHITE)
+**Русский:** Запускает скроллинг текста вверх.
+
+**English:** Starts up text scrolling.
+
+```purebasic
+WeAct_ScrollTextUp("Вертикальный скролл", 15.0, 10, #WEACT_CYAN)
+```
+
+#### WeAct_ScrollTextDown(Text.s, Speed.f = 20.0, FontSize.i = 12, Color.i = #WEACT_WHITE)
+**Русский:** Запускает скроллинг текста вниз.
+
+**English:** Starts down text scrolling.
+
+```purebasic
+WeAct_ScrollTextDown("Скролл вниз", 15.0, 10, #WEACT_YELLOW)
+```
+
+### 🖼️ Работа с изображениями / Image Operations
+
+#### WeAct_GetSupportedImageFormats()
+**Русский:** Возвращает список поддерживаемых форматов изображений.
+
+**English:** Returns list of supported image formats.
+
+```purebasic
+formats$ = WeAct_GetSupportedImageFormats()
+Debug "Поддерживаемые форматы: " + formats$  ; "BMP, JPEG, PNG, TIFF, TGA"
+```
+
+#### WeAct_LoadImageToBuffer(x, y, FileName.s, Width.i = -1, Height.i = -1)
+**Русский:** Загружает изображение с возможностью масштабирования.
+
+**English:** Loads image with scaling capability.
 
 ```purebasic
 ; Оригинальный размер / Original size
 WeAct_LoadImageToBuffer(10, 10, "image.bmp", -1, -1)
 
-; С масштабированием / With scaling
+; Масштабирование / Scaling
 WeAct_LoadImageToBuffer(20, 20, "image.jpg", 80, 40)
-; В отладке появится предупреждение о лимитах масштабирования
+
+; Пропорциональное масштабирование / Proportional scaling
+WeAct_LoadImageToBuffer(0, 0, "photo.png", 100, -1)  ; Авто-высота / Auto-height
 ```
 
-### WeAct_LoadImageFast(x, y, FileName.s) 🆕
-**Русский:** Быстрая загрузка изображения БЕЗ масштабирования. Максимальная производительность.
-
-**English:** Fast image loading WITHOUT scaling. Maximum performance.
-
-```purebasic
-; Быстрая загрузка (изображение должно быть правильного размера)
-WeAct_LoadImageFast(10, 10, "icon.bmp")
-```
-
-### WeAct_LoadImageFullScreen(FileName.s)
+#### WeAct_LoadImageFullScreen(FileName.s)
 **Русский:** Загружает изображение на весь экран с сохранением пропорций.
 
 **English:** Loads image to full screen with aspect ratio preserved.
@@ -345,82 +388,229 @@ WeAct_LoadImageFast(10, 10, "icon.bmp")
 WeAct_LoadImageFullScreen("background.jpg")
 ```
 
-### WeAct_GetSupportedImageFormats()
-**Русский:** Возвращает список поддерживаемых форматов.
+#### WeAct_LoadImageCentered(FileName.s, Width.i = -1, Height.i = -1)
+**Русский:** Загружает изображение по центру экрана с возможным масштабированием.
 
-**English:** Returns list of supported image formats.
+**English:** Loads image centered on screen with optional scaling.
 
 ```purebasic
-formats$ = WeAct_GetSupportedImageFormats()
-; Вернет / Returns: "BMP, JPEG, PNG, TIFF, TGA"
+WeAct_LoadImageCentered("logo.png")                    ; Оригинальный размер / Original size
+WeAct_LoadImageCentered("icon.jpg", 64, 64)           ; 64x64 по центру / 64x64 centered
+WeAct_LoadImageCentered("banner.bmp", 120, -1)        ; Ширина 120px, авто-высота / Width 120px, auto-height
 ```
 
-## ⚙️ Управление дисплеем / Display Control
+#### WeAct_LoadImageFast(x, y, FileName.s)
+**Русский:** Быстрая загрузка изображения без масштабирования (только копирование пикселей).
 
-### WeAct_SetOrientation(Orientation)
-**Русский:** Устанавливает ориентацию дисплея согласно протоколу v1.1. Поддерживает **режим ROTATE (5)**.
-
-**English:** Sets display orientation according to protocol v1.1. Supports **ROTATE mode (5)**.
+**English:** Fast image loading without scaling (pixel copy only).
 
 ```purebasic
-; Стандартные режимы / Standard modes
+WeAct_LoadImageFast(10, 10, "sprite.bmp")  ; Изображение должно быть правильного размера / Image must be correct size
+```
+
+### ⚙️ Управление дисплеем / Display Control
+
+#### WeAct_SetOrientation(Orientation)
+**Русский:** Устанавливает ориентацию дисплея. Поддерживает режим автоповорота.
+
+**English:** Sets display orientation. Supports auto-rotation mode.
+
+```purebasic
 WeAct_SetOrientation(#WEACT_LANDSCAPE)           ; 160x80
 WeAct_SetOrientation(#WEACT_PORTRAIT)            ; 80x160
-WeAct_SetOrientation(#WEACT_REVERSE_LANDSCAPE)   ; 160x80 (перевернутый)
-WeAct_SetOrientation(#WEACT_REVERSE_PORTRAIT)    ; 80x160 (перевернутый)
-
-; Автоповорот! / Auto-rotation!
-WeAct_SetOrientation(#WEACT_ROTATE)              ; Режим 5 / Mode 5
+WeAct_SetOrientation(#WEACT_REVERSE_LANDSCAPE)   ; Перевернутый ландшафт / Reverse landscape
+WeAct_SetOrientation(#WEACT_REVERSE_PORTRAIT)    ; Перевернутый портрет / Reverse portrait
+WeAct_SetOrientation(#WEACT_ROTATE)              ; Автоповорот / Auto-rotation
 ```
 
-**⚠️ Важно:** После смены ориентации изменяются размеры дисплея. Используйте `WeAct_GetDisplayWidth()` и `WeAct_GetDisplayHeight()` для актуальных размеров.
+#### WeAct_SetBrightness(Brightness, TimeMs = 500)
+**Русский:** Устанавливает яркость дисплея с плавным переходом.
 
-### WeAct_FillScreen(Color) 🆕
-**Русский:** Быстрая заливка всего экрана цветом через команду FULL (0x04). Работает быстрее чем рисование через буфер.
-
-**English:** Fast fill entire screen with color via FULL command (0x04). Faster than buffer-based drawing.
+**English:** Sets display brightness with smooth transition.
 
 ```purebasic
-WeAct_FillScreen(#WEACT_RED)      ; Быстрая заливка красным / Fast red fill
-WeAct_FillScreen(RGBToRGB565(64, 64, 64))  ; Темно-серый / Dark gray
+WeAct_SetBrightness(255)       ; Максимальная яркость / Maximum brightness
+WeAct_SetBrightness(128)       ; Половина яркости / Half brightness
+WeAct_SetBrightness(0, 1000)   ; Плавное выключение / Smooth fade to off
+WeAct_SetBrightness(255, 2000) ; Плавное включение / Smooth fade to max
 ```
 
-## 🆕 Новые функции v5.0 / New Functions v5.0
+#### WeAct_SystemReset()
+**Русский:** Отправляет команду сброса на дисплей.
 
-### WeAct_DrawProgressBar(x, y, Width, Height, Progress.f, ForeColor, BackColor, BorderColor)
-**Русский:** Рисует прогресс-бар с настраиваемыми цветами.
-
-**English:** Draws a progress bar with customizable colors.
+**English:** Sends reset command to display.
 
 ```purebasic
-; Progress от 0.0 до 1.0
-WeAct_DrawProgressBar(10, 30, 140, 15, 0.65, 
-  #WEACT_GREEN,     ; Цвет заполнения / Fill color
-  #WEACT_BLACK,     ; Цвет фона / Background color
-  #WEACT_WHITE)     ; Цвет рамки / Border color
+WeAct_SystemReset()  ; Перезагружает дисплей / Reboots the display
 ```
 
-### WeAct_DrawGraph(x, y, Width, Height, *Data.Float, DataCount, MinValue.f, MaxValue.f, Color, BackColor)
-**Русский:** Рисует график с автоматическим масштабированием.
+#### WeAct_FillScreen(Color)
+**Русский:** Быстро заливает весь экран цветом через аппаратную команду.
 
-**English:** Draws a graph with automatic scaling.
+**English:** Quickly fills entire screen with color via hardware command.
 
 ```purebasic
-; Создаем данные (синусоида) / Create data (sine wave)
+WeAct_FillScreen(#WEACT_RED)      ; Красный экран / Red screen
+WeAct_FillScreen(#WEACT_BLACK)    ; Черный экран / Black screen
+```
+
+### 🔧 Вспомогательные функции / Utility Functions
+
+#### WeAct_GetInfo()
+**Русский:** Возвращает информацию о дисплее и подключении.
+
+**English:** Returns display and connection information.
+
+```purebasic
+info$ = WeAct_GetInfo()
+Debug info$  ; "WeAct Display FS 0.96-inch (COM3) 160x80"
+```
+
+#### WeAct_GetOrientation()
+**Русский:** Возвращает текущую ориентацию дисплея.
+
+**English:** Returns current display orientation.
+
+```purebasic
+orientation = WeAct_GetOrientation()
+Select orientation
+  Case #WEACT_LANDSCAPE
+    Debug "Ландшафтная ориентация / Landscape orientation"
+  Case #WEACT_PORTRAIT
+    Debug "Портретная ориентация / Portrait orientation"
+EndSelect
+```
+
+#### WeAct_GetBrightness()
+**Русский:** Возвращает текущую яркость дисплея (0-255).
+
+**English:** Returns current display brightness (0-255).
+
+```purebasic
+brightness = WeAct_GetBrightness()
+Debug "Текущая яркость: " + Str(brightness) + " / 255"
+```
+
+#### WeAct_IsConnected()
+**Русский:** Проверяет, подключен ли дисплей.
+
+**English:** Checks if display is connected.
+
+```purebasic
+If WeAct_IsConnected()
+  Debug "Дисплей подключен / Display connected"
+Else
+  Debug "Дисплей отключен / Display disconnected"
+EndIf
+```
+
+#### WeAct_GetDisplayWidth()
+**Русский:** Возвращает текущую ширину дисплея (зависит от ориентации).
+
+**English:** Returns current display width (depends on orientation).
+
+```purebasic
+width = WeAct_GetDisplayWidth()
+Debug "Ширина дисплея: " + Str(width) + "px"
+```
+
+#### WeAct_GetDisplayHeight()
+**Русский:** Возвращает текущую высоту дисплея (зависит от ориентации).
+
+**English:** Returns current display height (depends on orientation).
+
+```purebasic
+height = WeAct_GetDisplayHeight()
+Debug "Высота дисплея: " + Str(height) + "px"
+```
+
+#### WeAct_GetLastError()
+**Русский:** Возвращает текст последней ошибки.
+
+**English:** Returns last error message.
+
+```purebasic
+If Not WeAct_Init("COM99")
+  error$ = WeAct_GetLastError()
+  Debug "Ошибка инициализации: " + error$
+EndIf
+```
+
+#### WeAct_CleanupFonts()
+**Русский:** Очищает кэш шрифтов. Вызывается автоматически в WeAct_Cleanup().
+
+**English:** Clears font cache. Called automatically in WeAct_Cleanup().
+
+```purebasic
+WeAct_CleanupFonts()  ; Освобождает память занятую шрифтами / Frees memory occupied by fonts
+```
+
+### 🆕 Новые функции / New Functions
+
+#### WeAct_DrawProgressBar(x, y, Width, Height, Progress.f, ForeColor = #WEACT_GREEN, BackColor = #WEACT_BLACK, BorderColor = #WEACT_WHITE)
+**Русский:** Рисует прогресс-бар с указанным прогрессом (0.0-1.0).
+
+**English:** Draws progress bar with specified progress (0.0-1.0).
+
+```purebasic
+; Прогресс 65% / 65% progress
+WeAct_DrawProgressBar(10, 30, 140, 15, 0.65, #WEACT_GREEN, #WEACT_BLACK, #WEACT_WHITE)
+
+; Простой прогресс-бар / Simple progress bar
+WeAct_DrawProgressBar(10, 50, 120, 10, 0.3)  ; Использует цвета по умолчанию / Uses default colors
+```
+
+#### WeAct_DrawGraph(x, y, Width, Height, *Data.Float, DataCount, MinValue.f, MaxValue.f, Color = #WEACT_WHITE, BackColor = #WEACT_BLACK)
+**Русский:** Рисует график из массива значений с автоматическим масштабированием.
+
+**English:** Draws graph from value array with automatic scaling.
+
+```purebasic
+; Создаем данные синусоиды / Create sine wave data
 Protected Dim data.f(49)
 For i = 0 To 49
   data(i) = Sin(i * 3.14159 * 2.0 / 50) * 0.8
 Next
 
 ; Рисуем график / Draw graph
-WeAct_DrawGraph(5, 15, 150, 60, @data(), 50, -1.0, 1.0, 
-  #WEACT_CYAN, #WEACT_BLACK)
+WeAct_DrawGraph(5, 15, 150, 60, @data(), 50, -1.0, 1.0, #WEACT_CYAN, #WEACT_BLACK)
 ```
 
-### WeAct_DrawSpinner(cx, cy, radius, angle.f, Color)
-**Русский:** Рисует анимированный индикатор загрузки.
+#### WeAct_ShowTextFile(FileName.s, FontSize = 10, Color = #WEACT_WHITE, ScrollSpeed.f = 30.0)
+**Русский:** Загружает текстовый файл и запускает вертикальный скроллинг.
 
-**English:** Draws an animated loading spinner.
+**English:** Loads text file and starts vertical scrolling.
+
+```purebasic
+If WeAct_ShowTextFile("readme.txt", 8, #WEACT_WHITE, 20.0)
+  Debug "Файл загружен / File loaded"
+Else
+  Debug "Ошибка: " + WeAct_GetLastError()
+EndIf
+```
+
+#### WeAct_ShowTime(x, y, Hour, Minute, Color = #WEACT_WHITE, FontSize = 16)
+**Русский:** Отображает время в формате HH:MM.
+
+**English:** Displays time in HH:MM format.
+
+```purebasic
+WeAct_ShowTime(10, 10, 14, 30, #WEACT_WHITE, 16)  ; 14:30
+```
+
+#### WeAct_ShowDate(x, y, Day, Month, Year, Color = #WEACT_WHITE, FontSize = 10)
+**Русский:** Отображает дату в формате DD.MM.YYYY.
+
+**English:** Displays date in DD.MM.YYYY format.
+
+```purebasic
+WeAct_ShowDate(10, 30, 15, 1, 2026, #WEACT_WHITE, 10)  ; 15.01.2026
+```
+
+#### WeAct_DrawSpinner(cx, cy, radius, angle.f, Color = #WEACT_WHITE)
+**Русский:** Рисует анимированный индикатор загрузки (спиннер).
+
+**English:** Draws animated loading indicator (spinner).
 
 ```purebasic
 ; Анимация спиннера / Spinner animation
@@ -432,225 +622,144 @@ For angle.f = 0.0 To 360.0 Step 10.0
 Next
 ```
 
-## 🔧 Вспомогательные функции / Utility Functions
+### 📝 Внутренние функции / Internal Functions
 
-### WeAct_GetLastError()
-**Русский:** Возвращает текст последней ошибки для диагностики.
+#### SendCommand(*Data, Length)
+**Русский:** Отправляет команду на дисплей. Внутренняя функция.
 
-**English:** Returns last error message for diagnostics.
-
-```purebasic
-If Not WeAct_Init("COM99")
-  Debug "Ошибка: " + WeAct_GetLastError()
-  ; "Failed to open serial port COM99"
-EndIf
-```
-
-### WeAct_GetInfo()
-**Русский:** Возвращает информацию о дисплее и подключении.
-
-**English:** Returns display and connection information.
+**English:** Sends command to display. Internal function.
 
 ```purebasic
-info$ = WeAct_GetInfo()
-; "WeAct Display FS 0.96-inch (COM3) 160x80"
+; Пример использования внутри библиотеки / Example usage inside library
+Dim cmd.b(2)
+cmd(0) = $02   ; Команда ориентации / Orientation command
+cmd(1) = #WEACT_LANDSCAPE
+cmd(2) = $0A   ; Терминатор / Terminator
+SendCommand(@cmd(), 3)
 ```
 
-### WeAct_GetDisplayWidth() / WeAct_GetDisplayHeight()
-**Русский:** Возвращает текущие размеры дисплея.
+## 🎯 Примеры использования / Usage Examples
 
-**English:** Returns current display dimensions.
+### Полный пример программы / Complete Program Example
 
-```purebasic
-width = WeAct_GetDisplayWidth()
-height = WeAct_GetDisplayHeight()
-```
-
-## 🎯 Примеры / Examples
-
-### Простой пример / Simple Example
 ```purebasic
 XIncludeFile "WeActDisplay.pbi"
 
 If WeAct_Init("COM3")
-  WeAct_ClearBuffer(#WEACT_BLACK)
-  WeAct_DrawTextMedium(10, 10, "Hello World!", #WEACT_WHITE)
-  WeAct_DrawTextSmall(10, 30, "Привет мир!", #WEACT_GREEN)
-  WeAct_DrawCircleBuffer(120, 50, 20, #WEACT_BLUE, #False)
-  WeAct_UpdateDisplay()
-  
-  Delay(3000)
-  WeAct_Cleanup()
-EndIf
-```
-
-### Тест быстрой загрузки изображений / Fast Image Loading Test
-```purebasic
-XIncludeFile "WeActDisplay.pbi"
-
-If WeAct_Init("COM3")
-  ; Обычная загрузка с масштабированием
-  WeAct_ClearBuffer(#WEACT_BLACK)
-  If WeAct_LoadImageToBuffer(10, 10, "test.jpg", 100, 50)
-    Debug "Изображение загружено с масштабированием"
-  EndIf
-  WeAct_UpdateDisplay()
-  Delay(2000)
-  
-  ; Быстрая загрузка (без масштабирования)
-  WeAct_ClearBuffer(#WEACT_BLACK)
-  If WeAct_LoadImageFast(10, 10, "fast.bmp")
-    Debug "Быстрая загрузка выполнена"
-  EndIf
-  WeAct_UpdateDisplay()
-  Delay(2000)
-  
-  WeAct_Cleanup()
-EndIf
-```
-
-### Тест цветов BRG565 / BRG565 Color Test
-```purebasic
-XIncludeFile "WeActDisplay.pbi"
-
-If WeAct_Init("COM3")
+  ; Очищаем экран / Clear screen
   WeAct_ClearBuffer(#WEACT_BLACK)
   
-  ; Тестируем предопределенные цвета в формате BRG565
-  WeAct_DrawTextMedium(10, 5, "BRG565 Color Test", #WEACT_WHITE)
+  ; Рисуем текст / Draw text
+  WeAct_DrawTextMedium(10, 10, "WeAct Display Test", #WEACT_WHITE)
+  WeAct_DrawTextSmall(10, 30, "Графика и текст", #WEACT_GREEN)
   
-  WeAct_DrawRectangleBuffer(10, 25, 40, 20, #WEACT_RED, #True)
-  WeAct_DrawTextSmall(55, 30, "RED (BRG: $F800)", #WEACT_WHITE)
+  ; Рисуем графические примитивы / Draw graphics primitives
+  WeAct_DrawRectangleBuffer(10, 50, 60, 20, #WEACT_RED, #True)
+  WeAct_DrawRectangleBuffer(80, 50, 60, 20, #WEACT_BLUE, #False)
+  WeAct_DrawCircleBuffer(40, 70, 15, #WEACT_YELLOW, #True)
+  WeAct_DrawCircleBuffer(100, 70, 10, #WEACT_CYAN, #False)
   
-  WeAct_DrawRectangleBuffer(10, 50, 40, 20, #WEACT_GREEN, #True)
-  WeAct_DrawTextSmall(55, 55, "GREEN (BRG: $07E0)", #WEACT_WHITE)
+  ; Прогресс-бар / Progress bar
+  WeAct_DrawProgressBar(10, 90, 140, 10, 0.75, #WEACT_GREEN, #WEACT_BLACK, #WEACT_WHITE)
   
-  WeAct_DrawRectangleBuffer(10, 75, 40, 20, #WEACT_BLUE, #True)
-  WeAct_DrawTextSmall(55, 80, "BLUE (BRG: $001F)", #WEACT_WHITE)
-  
-  ; Тест преобразования RGB в BRG565
-  Protected customColor = RGBToRGB565(255, 128, 0)  ; Оранжевый
-  WeAct_DrawRectangleBuffer(10, 100, 40, 20, customColor, #True)
-  WeAct_DrawTextSmall(55, 105, "Custom RGB(255,128,0)", #WEACT_WHITE)
-  
+  ; Обновляем дисплей / Update display
   WeAct_UpdateDisplay()
+  
   Delay(5000)
   WeAct_Cleanup()
 EndIf
 ```
 
-## 🔧 Исправленные проблемы / Fixed Issues
-
-### 1. Преобразование цветов (Color Conversion)
-**Проблема / Problem:** Неправильное преобразование RGB в BRG565 формате дисплея.
-**Решение / Solution:** Новая функция `RGBToRGB565_Fixed()` с правильным преобразованием.
+### Пример со скроллингом / Scrolling Example
 
 ```purebasic
-; Исправленный код / Fixed code:
-Procedure.i RGBToRGB565_Fixed(r, g, b)
-  r = r & $FF
-  g = g & $FF  
-  b = b & $FF
+XIncludeFile "WeActDisplay.pbi"
+
+If WeAct_Init("COM3")
+  ; Запускаем скроллинг / Start scrolling
+  WeAct_StartScrollText("Пример бегущей строки с плавным скроллингом", 12, #SCROLL_LEFT, 40.0, #WEACT_WHITE)
   
-  Protected r5 = (r >> 3) & $1F    ; 5 бит красного / 5 red bits
-  Protected g6 = (g >> 2) & $3F    ; 6 бит зеленого / 6 green bits
-  Protected b5 = (b >> 3) & $1F    ; 5 бит синего / 5 blue bits
+  ; Анимация / Animation
+  For i = 1 To 300  ; ~10 секунд / ~10 seconds
+    WeAct_ClearBuffer(#WEACT_BLACK)
+    
+    ; Обновляем и рисуем скроллируемый текст / Update and draw scrolling text
+    WeAct_UpdateScrollText()
+    WeAct_DrawScrollText()
+    
+    ; Рисуем статичный текст / Draw static text
+    WeAct_DrawTextSmall(10, 60, "Счетчик: " + Str(i), #WEACT_GREEN)
+    
+    WeAct_UpdateDisplay()
+    Delay(33)  ; ~30 FPS
+  Next
   
-  ProcedureReturn (r5 << 11) | (g6 << 5) | b5
-EndProcedure
-```
-
-### 2. Рендеринг текста (Text Rendering)
-**Проблема / Problem:** Использование 32-bit формата для рендеринга текста.
-**Решение / Solution:** Переход на 24-bit рендеринг для совместимости.
-
-```purebasic
-; Было / Was: (32-bit)
-Protected renderImage = CreateImage(#PB_Any, textWidth + 4, textHeight + 4, 32)
-
-; Стало / Now: (24-bit)
-Protected renderImage = CreateImage(#PB_Any, textWidth + 4, textHeight + 4, 24, RGB(0, 0, 0))
-```
-
-### 3. Аппаратные ограничения масштабирования (Hardware Scaling Limitations)
-**Проблема / Problem:** Дисплей имеет ограничения на произвольное масштабирование.
-**Решение / Solution:** Добавлены предупреждения и новая функция для быстрой загрузки.
-
-```purebasic
-; При масштабировании выводится предупреждение:
-Debug "ВНИМАНИЕ: Дисплей WeAct FS имеет аппаратные ограничения на масштабирование."
-Debug "Рекомендуется загружать изображения в оригинальном размере..."
-
-; Альтернатива: быстрая загрузка без масштабирования
-WeAct_LoadImageFast(x, y, "image.bmp")
-```
-
-## 📊 Производительность / Performance
-
-**Русский:**
-- ✅ **Кэширование шрифтов:** Ускоренный рендеринг текста
-- ✅ **Двойная буферизация:** Полное отсутствие мерцания
-- ✅ **Быстрая заливка:** Команда FULL для мгновенной заливки экрана
-- ✅ **Оптимизированный скроллинг:** Накопление дробных пикселей
-- ✅ **Быстрая загрузка изображений:** Функция `LoadImageFast` для максимальной скорости
-- ✅ **Эффективное управление памятью:** Фиксированные буферы для всех ориентаций
-
-**English:**
-- ✅ **Font caching:** Accelerated text rendering
-- ✅ **Double buffering:** Complete elimination of flickering
-- ✅ **Fast fill:** FULL command for instant screen filling
-- ✅ **Optimized scrolling:** Fractional pixel accumulation
-- ✅ **Fast image loading:** `LoadImageFast` function for maximum speed
-- ✅ **Efficient memory management:** Fixed buffers for all orientations
-
-## 🐛 Отладка / Debugging
-
-**Русский:**
-Используйте `WeAct_GetLastError()` для диагностики проблем:
-
-**English:**
-Use `WeAct_GetLastError()` for problem diagnostics:
-
-```purebasic
-If Not WeAct_Init("COM3")
-  Debug "Init error: " + WeAct_GetLastError()
+  WeAct_StopScrollText()
+  WeAct_Close()
 EndIf
-
-If Not WeAct_LoadImageToBuffer(0, 0, "test.jpg", 80, 80)
-  Debug "Image error: " + WeAct_GetLastError()
-EndIf
-
-; Включите отладку для предупреждений о масштабировании
-; Enable debugging for scaling warnings
 ```
 
-## 📝 Лицензия / License
+## 🎨 Предопределенные цвета / Predefined Colors
 
-**Русский:** Открытый исходный код. Свободно используйте в своих проектах. Профессиональное издание предоставляет улучшенную стабильность и производительность.
+```purebasic
+; Все цвета в формате RGB565 / All colors in RGB565 format
+#WEACT_RED     = $F800    ; 1111100000000000 - Красный / Red
+#WEACT_GREEN   = $07E0    ; 0000011111100000 - Зеленый / Green
+#WEACT_BLUE    = $001F    ; 0000000000011111 - Синий / Blue
+#WEACT_WHITE   = $FFFF    ; 1111111111111111 - Белый / White
+#WEACT_BLACK   = $0000    ; 0000000000000000 - Черный / Black
+#WEACT_YELLOW  = $FFE0    ; 1111111111100000 - Желтый / Yellow
+#WEACT_CYAN    = $07FF    ; 0000011111111111 - Голубой / Cyan
+#WEACT_MAGENTA = $F81F    ; 1111100000011111 - Пурпурный / Magenta
+```
 
-**English:** Open source. Free to use in your projects. Professional edition provides enhanced stability and performance.
+## 📋 Константы ориентации / Orientation Constants
 
-## 📞 Поддержка / Support
+```purebasic
+; Используйте с WeAct_SetOrientation() / Use with WeAct_SetOrientation()
+#WEACT_PORTRAIT = 0           ; 80x160 пикселей / 80x160 pixels
+#WEACT_REVERSE_PORTRAIT = 1   ; 80x160 перевернутый / 80x160 reversed
+#WEACT_LANDSCAPE = 2          ; 160x80 (стандарт) / 160x80 (default)
+#WEACT_REVERSE_LANDSCAPE = 3  ; 160x80 перевернутый / 160x80 reversed
+#WEACT_ROTATE = 5             ; Автоповорот / Auto-rotation
+```
+
+## 📋 Константы скроллинга / Scrolling Constants
+
+```purebasic
+; Используйте с WeAct_StartScrollText() / Use with WeAct_StartScrollText()
+#SCROLL_LEFT = 0    ; Слева направо / Left to right
+#SCROLL_RIGHT = 1   ; Справа налево / Right to left
+#SCROLL_UP = 2      ; Снизу вверх / Bottom to top
+#SCROLL_DOWN = 3    ; Сверху вниз / Top to bottom
+```
+
+## 🛠️ Технические характеристики / Technical Specifications
 
 **Русский:**
-1. Проверьте номер COM-порта в Диспетчере устройств Windows
-2. Убедитесь, что дисплей правильно подключен и питается
-3. Используйте `WeAct_GetLastError()` для получения детальной информации об ошибках
-4. Для изображений используйте `WeAct_LoadImageFast()` если не требуется масштабирование
-5. Помните о формате BRG565 при работе с пользовательскими цветами
+- Дисплей: WeAct Display FS 0.96-inch
+- Разрешение: 160x80 пикселей
+- Подключение: USB-Serial (CH340)
+- Скорость: 115200 бод
+- Формат цвета: RGB565 (16-bit)
+- Поддержка изображений: BMP, JPEG, PNG, TIFF, TGA
+- Двойная буферизация: 2×25600 байт
+- Поддержка кириллицы: полная
 
 **English:**
-1. Check COM port number in Windows Device Manager
-2. Ensure display is properly connected and powered
-3. Use `WeAct_GetLastError()` for detailed error information
-4. For images, use `WeAct_LoadImageFast()` if scaling is not required
-5. Remember BRG565 format when working with custom colors
+- Display: WeAct Display FS 0.96-inch
+- Resolution: 160x80 pixels
+- Connection: USB-Serial (CH340)
+- Baud rate: 115200
+- Color format: RGB565 (16-bit)
+- Image support: BMP, JPEG, PNG, TIFF, TGA
+- Double buffering: 2×25600 bytes
+- Cyrillic support: full
 
 ---
 
-**Version:** 5.0 - Professional Edition  
-**Date:** January 2026  
-**Compatibility:** PureBasic 6.21+, WeAct Display FS 0.96-inch (160x80)  
-**Protocol:** v1.1  
-**Color Format:** BRG565 (not RGB565)  
+**Версия / Version:** 5.1
+**Совместимость / Compatibility:** PureBasic 6.20+, WeAct Display FS 0.96-inch (160x80)  
+**Формат цвета / Color Format:** RGB565  
 **GitHub:** https://github.com/CheshirCa/WeActDisplay
+```
