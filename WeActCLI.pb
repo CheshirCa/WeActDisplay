@@ -1,7 +1,5 @@
-; =============================================
-; WeActCLI - Console Text Display Utility
-; Usage: WeActCLI /p:X [/v][/c:YYY] [/f:Font:Size] [/s:Speed[:u|d]] [/center] [/CLS] [/file:"path\name.txt"] "text"
-; =============================================
+; WeActCLI - Console Text and Image Display Utility for WeAct Display FS
+; Main program file for displaying text and images on WeAct Display via serial port
 
 XIncludeFile "WeActDisplay.pbi"
 
@@ -11,223 +9,225 @@ OpenConsole()
 ; GLOBAL VARIABLE DECLARATIONS
 ; =============================================
 
-; Control flag for verbose output mode
+; Control flag for verbose output mode (shows detailed information)
 Global verbose.i = #False
 
 ; COM port for WeAct Display connection (default: COM3)
+; Stores the serial port name like "COM3"
 Global comPort.s = "COM3"
 
-; Text color constant (default: white)
+; Text color constant in BRG565 format (default: white = #WEACT_WHITE = $FFFF)
 Global textColor.i = #WEACT_WHITE
 
 ; Text content to be displayed on the screen
+; Can come from command line, file, or stdin
 Global displayText.s = ""
 
+; Path to image file to display
+Global imageFile.s = ""
+
 ; Maximum width for text wrapping in pixels (default: 150px)
+; Used to wrap long text lines to fit display width
 Global wrapWidth.i = 150
 
 ; Spacing between text lines in pixels (default: 2px)
+; Adds vertical space between lines of wrapped text
 Global lineSpacing.i = 2
 
 ; Font name for text rendering (default: Arial)
 Global fontName.s = "Arial"
 
 ; Font size in points (default: 8pt)
+; Size of the font for text rendering
 Global fontSize.i = 8
 
 ; Scrolling speed in pixels per second (default: 30.0 px/s)
+; Controls how fast text moves in scroll mode
 Global scrollSpeed.f = 30.0
 
 ; Flag indicating whether scrolling mode is enabled
+; #True = text scrolls, #False = static text
 Global scrollMode.i = #False
 
 ; Scrolling direction (up/down), uses constants from WeActDisplay.pbi
+; #SCROLL_UP = scroll upward, #SCROLL_DOWN = scroll downward
 Global scrollDirection.i = #SCROLL_UP
 
 ; Flag for horizontal text centering
+; #True = center text, #False = left-align text
 Global centerText.i = #False
 
 ; Flag for screen clearing only mode (no text display)
+; #True = only clear screen, #False = normal operation
 Global clearScreenOnly.i = #False
 
 ; Path to text file for loading content
 Global textFile.s = ""
 
 ; Maximum number of lines to load from text file
+; Prevents loading huge files that won't fit on display
 Global maxFileLines.i = 1000
+
+; Image display mode: 0=fit to screen, 1=original size, 2=centered with size
+Global imageMode.i = 0
+
+; Custom image dimensions for mode 2 (centered with specific size)
+; -1 means use original image dimensions
+Global imageWidth.i = -1
+Global imageHeight.i = -1
+
+; Image quality setting for display
+; 0=fast, 1=normal, 2=high, 3=bw fast, 4=bw high
+Global imageQuality.i = 1
 
 ; =============================================
 ; UTILITY FUNCTIONS
 ; =============================================
 
 ; Loads text content from a specified file with UTF-8 encoding support
+; FilePath: Full path to the text file
+; MaxLines: Maximum number of lines to load (prevents memory issues)
+; Returns: String containing file content or empty string on error
 Procedure.s LoadTextFromFile(FilePath.s, MaxLines.i = 1000)
-  Protected result.s = ""
-  Protected lineCount.i = 0
-  Protected file.i
+  Protected result.s = ""      ; Final text content to return
+  Protected lineCount.i = 0    ; Counter for loaded lines
+  Protected file.i            ; File handle
   
-  ; Validate file existence and size
+  ; Check if file exists and is not empty
+  ; FileSize() returns file size in bytes, <=0 means file doesn't exist or is empty
   If FileSize(FilePath) <= 0
     PrintN("Error: File '" + FilePath + "' not found or empty")
-    ProcedureReturn ""
+    ProcedureReturn ""         ; Return empty string on error
   EndIf
   
-  ; Attempt to open file with UTF-8 encoding
+  ; Open file with UTF-8 encoding for proper Unicode support
   file = ReadFile(#PB_Any, FilePath)
-  If Not file
+  If Not file                 ; Check if file opened successfully
     PrintN("Error: Cannot open file '" + FilePath + "'")
-    ProcedureReturn ""
+    ProcedureReturn ""         ; Return empty string on error
   EndIf
   
-  ; Read file line by line up to MaxLines
+  ; Read file line by line until EOF or MaxLines reached
   While Not Eof(file) And lineCount < MaxLines
-    Protected line.s = ReadString(file, #PB_UTF8)
+    Protected line.s = ReadString(file, #PB_UTF8)  ; Read line with UTF-8 encoding
     
-    ; Concatenate lines with newline separation
+    ; Concatenate lines with CRLF (carriage return + line feed) separation
+    ; This preserves original line breaks in the text
     If result <> ""
-      result + #CRLF$ + line
+      result + #CRLF$ + line    ; Add newline before next line
     Else
-      result = line
+      result = line             ; First line, no newline needed
     EndIf
-    lineCount + 1
+    lineCount + 1              ; Increment line counter
   Wend
   
-  CloseFile(file)
+  CloseFile(file)              ; Close file when done
   
-  ; Verbose mode logging for file loading details
-  If verbose
-    PrintN("Loaded " + Str(lineCount) + " lines from file: " + FilePath)
-    PrintN("Total text length: " + Str(Len(result)) + " characters")
-  EndIf
-  
-  ProcedureReturn result
+  ProcedureReturn result       ; Return the loaded text
 EndProcedure
 
-; Определяет кодировку консоли Windows
-Procedure.i GetConsoleCodepage()
-  Protected cp.i = GetConsoleCP_()
+; Display image from file using WeAct display functions
+; ImagePath: Full path to image file
+; Mode: Display mode (0=fit to screen, 1=original size, 2=centered with size)
+; ImgWidth: Custom width for mode 2
+; ImgHeight: Custom height for mode 2
+; Returns: #True if successful, #False if failed
+Procedure DisplayImageFromFile(ImagePath.s, Mode.i = 0, ImgWidth.i = -1, ImgHeight.i = -1)
+  Protected result.i = #False  ; Operation result flag
   
-  If verbose
-    PrintN("Console codepage: " + Str(cp))
-    Select cp
-      Case 65001
-        PrintN("  Encoding: UTF-8")
-      Case 1251
-        PrintN("  Encoding: Windows-1251 (Cyrillic)")
-      Case 1252
-        PrintN("  Encoding: Windows-1252 (Latin)")
-      Case 866
-        PrintN("  Encoding: CP866 (DOS Cyrillic)")
-      Case 437
-        PrintN("  Encoding: CP437 (DOS English)")
-      Default
-        PrintN("  Encoding: Unknown")
-    EndSelect
+  ; Load test image first to validate it can be loaded
+  Protected testImage = LoadImage(#PB_Any, ImagePath)
+  If testImage
+    FreeImage(testImage)       ; Free test image after validation
   EndIf
   
-  ProcedureReturn cp
-EndProcedure
-
-; Конвертирует строку из заданной кодовой страницы в UTF-8
-Procedure.s ConvertToUTF8(Text.s, SourceCodepage.i)
-  If SourceCodepage = 65001 ; Уже UTF-8
-    ProcedureReturn Text
-  EndIf
-  
-  ; Конвертируем через API Windows
-  Protected length.i = Len(Text)
-  Protected *utf16 = AllocateMemory((length + 1) * 2) ; UTF-16 буфер
-  Protected *utf8 = AllocateMemory((length + 1) * 4)  ; UTF-8 буфер
-  
-  If *utf16 And *utf8
-    ; Конвертируем из исходной кодировки в UTF-16
-    Protected charsConverted = MultiByteToWideChar_(SourceCodepage, 0, @Text, -1, *utf16, length * 2)
-    
-    If charsConverted > 0
-      ; Конвертируем из UTF-16 в UTF-8
-      Protected bytesConverted = WideCharToMultiByte_(#CP_UTF8, 0, *utf16, -1, *utf8, MemorySize(*utf8), #Null, #Null)
+  ; Use appropriate display function based on mode parameter
+  Select Mode
+    Case 0  ; Mode 0: Fit to screen (maintain aspect ratio, fill screen)
+      ; WeAct_LoadImageFullScreen scales image to fill screen while keeping aspect ratio
+      result = WeAct_LoadImageFullScreen(ImagePath)
       
-      If bytesConverted > 0
-        Text = PeekS(*utf8, -1, #PB_UTF8)
-      EndIf
+    Case 1  ; Mode 1: Original size at position (0,0)
+      ; WeAct_LoadImageToBuffer displays image at original size at top-left corner
+      ; ImgWidth and ImgHeight are ignored in this mode (use original dimensions)
+      result = WeAct_LoadImageToBuffer(0, 0, ImagePath, ImgWidth, ImgHeight)
+      
+    Case 2  ; Mode 2: Centered with specified size
+      ; WeAct_LoadImageCentered displays image centered on screen with optional custom size
+      result = WeAct_LoadImageCentered(ImagePath, ImgWidth, ImgHeight)
+  EndSelect
+  
+  ; If image loaded successfully, update display and show for 3 seconds
+  If result
+    If WeAct_UpdateDisplay()
+      Delay(3000)               ; Show image for 3 seconds
+      ProcedureReturn #True
     EndIf
+  Else
+    PrintN("Error: Failed to load image - " + WeAct_GetLastError())
   EndIf
   
-  If *utf16 : FreeMemory(*utf16) : EndIf
-  If *utf8 : FreeMemory(*utf8) : EndIf
-  
-  ProcedureReturn Text
+  ProcedureReturn #False       ; Return failure
 EndProcedure
 
-; Читает данные из stdin с учетом кодировки
+; Reads data from standard input (stdin) with proper encoding handling
+; This allows piping text into the program: echo "text" | WeActCLI /p:3
+; Returns: String containing stdin data or empty string if no data
 Procedure.s ReadFromStdin()
-  Protected result.s = ""
+  Protected result.s = ""      ; Result string
   
-  If verbose
-    PrintN("Reading from stdin...")
-  EndIf
-  
+  ; Windows-specific stdin handling
   CompilerIf #PB_Compiler_OS = #PB_OS_Windows
-    ; Получаем кодовую страницу консоли
-    Protected consoleCP.i = GetConsoleCP_()
-    Protected isRedirected.i = #False
+    Protected consoleCP.i = GetConsoleCP_()      ; Get console codepage
+    Protected isRedirected.i = #False           ; Flag for pipe/file redirection
     
-    ; Проверяем, перенаправлен ли stdin
+    ; Check if stdin is redirected (pipe or file) or console input
     Protected hStdin = GetStdHandle_(#STD_INPUT_HANDLE)
     Protected fileType = GetFileType_(hStdin)
     
     If fileType <> #FILE_TYPE_CHAR
-      isRedirected = #True
-      If verbose
-        PrintN("stdin is redirected (pipe or file)")
-      EndIf
-    Else
-      If verbose
-        PrintN("stdin is console input")
-      EndIf
+      isRedirected = #True     ; stdin is redirected (pipe or file)
     EndIf
     
-    ; Для pipe из PowerShell или cmd.exe данные могут приходить в OEM кодировке
-    ; Для файлового перенаправления (< file.txt) - в ANSI кодировке
+    ; Determine encoding to use
+    ; For redirected input (pipes/files), use UTF-8 by default
+    ; For console input, use console's codepage
     Protected useCodepage.i = consoleCP
-    
     If isRedirected
-      ; При перенаправлении из PowerShell по умолчанию используется UTF-8
-      ; Но в старых версиях может использоваться OEM кодировка
-      useCodepage = #CP_UTF8 ; По умолчанию предполагаем UTF-8 для перенаправления
+      useCodepage = #CP_UTF8   ; Default to UTF-8 for redirected input
     EndIf
     
-    ; Читаем все доступные данные из stdin
-    Protected bufferSize = 65536
+    ; Allocate buffer for reading stdin data
+    Protected bufferSize = 65536    ; 64KB buffer
     Protected *buffer = AllocateMemory(bufferSize)
     
     If *buffer
-      Protected bytesRead.l
-      Protected totalBytesRead = 0
+      Protected bytesRead.l         ; Bytes read in current read operation
+      Protected totalBytesRead = 0  ; Total bytes read from stdin
       
-      ; Читаем данные
+      ; Read all available data from stdin
       While #True
-        Protected bytesAvailable.l
+        Protected bytesAvailable.l   ; Bytes available to read
+        
+        ; Check how many bytes are available to read
         If PeekNamedPipe_(hStdin, #Null, 0, #Null, @bytesAvailable, #Null)
           If bytesAvailable > 0
-            ; Читаем доступные данные
+            ; Read available data
             If ReadFile_(hStdin, *buffer + totalBytesRead, bytesAvailable, @bytesRead, #Null)
-              totalBytesRead + bytesRead
+              totalBytesRead + bytesRead  ; Add to total
               
-              ; Проверяем, не переполнен ли буфер
+              ; Stop if buffer is almost full
               If totalBytesRead >= bufferSize - 1024
                 Break
               EndIf
             Else
-              Break
+              Break  ; Read failed, exit loop
             EndIf
           Else
-            ; Больше данных нет
-            Break
+            Break    ; No more data available, exit loop
           EndIf
         Else
-          ; Не удалось проверить доступность данных (может быть файл)
-          ; Пробуем прочитать напрямую
+          ; Failed to check available data, try direct read
           If ReadFile_(hStdin, *buffer + totalBytesRead, bufferSize - totalBytesRead, @bytesRead, #Null)
             If bytesRead > 0
               totalBytesRead + bytesRead
@@ -240,70 +240,59 @@ Procedure.s ReadFromStdin()
         EndIf
       Wend
       
+      ; Convert bytes to string based on encoding
       If totalBytesRead > 0
-        ; Конвертируем байты в строку с учетом кодировки
+        ; UTF-8 encoding
         If useCodepage = 65001 Or useCodepage = #CP_UTF8
-          ; UTF-8
           result = PeekS(*buffer, totalBytesRead, #PB_UTF8)
+        ; Windows-1251 (Cyrillic)
         ElseIf useCodepage = 1251
-          ; Windows-1251 (Cyrillic)
           result = PeekS(*buffer, totalBytesRead, #PB_Ascii)
-          result = ConvertToUTF8(result, 1251)
+        ; CP866 (DOS Cyrillic)
         ElseIf useCodepage = 866
-          ; CP866 (DOS Cyrillic)
           result = PeekS(*buffer, totalBytesRead, #PB_Ascii)
-          result = ConvertToUTF8(result, 866)
+        ; Other encodings
         Else
-          ; Пробуем определить кодировку автоматически
-          ; Сначала пробуем как UTF-8
+          ; Try UTF-8 first, fall back to ANSI if invalid
           Protected testResult.s = PeekS(*buffer, totalBytesRead, #PB_UTF8)
-          
-          ; Проверяем, нет ли в UTF-8 строке недопустимых символов
           Protected isValidUTF8.i = #True
+          
+          ; Check for invalid UTF-8 characters (codes 128-159)
           Protected k.i
           For k = 1 To Len(testResult)
             Protected charCode.i = Asc(Mid(testResult, k, 1))
-            If charCode >= 128 And charCode <= 159 ; Недопустимые символы в UTF-8
+            If charCode >= 128 And charCode <= 159
               isValidUTF8 = #False
               Break
             EndIf
           Next
           
           If isValidUTF8 And testResult <> ""
-            result = testResult
+            result = testResult           ; Valid UTF-8
           Else
-            ; Пробуем как ANSI (Windows-1252)
+            ; Fall back to ANSI (Windows-1252)
             result = PeekS(*buffer, totalBytesRead, #PB_Ascii)
-            result = ConvertToUTF8(result, 1252)
           EndIf
         EndIf
         
-        ; Очищаем от управляющих символов
+        ; Clean up string: remove null characters and trailing line breaks
         result = ReplaceString(result, Chr(0), "")
         result = RTrim(result, #CR$ + #LF$)
-        
-        If verbose
-          PrintN("Read " + Str(totalBytesRead) + " bytes from stdin")
-          PrintN("Converted to " + Str(Len(result)) + " UTF-8 characters")
-          If Len(result) > 0 And Len(result) < 100
-            PrintN("First 100 chars: " + Left(result, 100))
-          EndIf
-        EndIf
       EndIf
       
-      FreeMemory(*buffer)
+      FreeMemory(*buffer)      ; Free the buffer
     EndIf
     
   CompilerElse
-    ; Для Linux/Mac используем стандартный подход
-    Protected stdinFile.i = ReadFile(#PB_Any, "")
+    ; Linux/Mac stdin handling (simpler, always UTF-8)
+    Protected stdinFile.i = ReadFile(#PB_Any, "")  ; Open stdin as file
     If stdinFile
-      Protected fileSize.i = Lof(stdinFile)
+      Protected fileSize.i = Lof(stdinFile)        ; Get size of stdin data
       If fileSize > 0
         Protected *fileBuffer = AllocateMemory(fileSize)
         If *fileBuffer
-          ReadData(stdinFile, *fileBuffer, fileSize)
-          result = PeekS(*fileBuffer, fileSize, #PB_UTF8)
+          ReadData(stdinFile, *fileBuffer, fileSize)  ; Read all data
+          result = PeekS(*fileBuffer, fileSize, #PB_UTF8)  ; Convert to UTF-8 string
           FreeMemory(*fileBuffer)
         EndIf
       EndIf
@@ -311,10 +300,13 @@ Procedure.s ReadFromStdin()
     EndIf
   CompilerEndIf
   
-  ProcedureReturn result
+  ProcedureReturn result       ; Return the stdin data
 EndProcedure
 
-; Simple string utility function
+; Simple inline-if function for strings
+; Condition: Boolean condition to check
+; TrueValue: String to return if condition is true
+; FalseValue: String to return if condition is false
 Procedure.s IIf(Condition.i, TrueValue.s, FalseValue.s)
   If Condition
     ProcedureReturn TrueValue
@@ -329,16 +321,17 @@ EndProcedure
 
 ; Displays comprehensive help information with usage examples
 Procedure ShowHelp()
-  PrintN("WeActCLI - Console Text Display Utility for WeAct Display FS")
+  PrintN("WeActCLI - Console Text and Image Display Utility for WeAct Display FS")
   PrintN("")
   PrintN("USAGE MODES:")
   PrintN("  1. Command line text: WeActCLI /p:3 " + Chr(34) + "Hello World" + Chr(34))
   PrintN("  2. File input:        WeActCLI /p:3 /file:log.txt")
-  PrintN("  3. Pipe redirection:  dir | WeActCLI /p:3")
-  PrintN("  4. File redirection:  WeActCLI /p:3 < log.txt")
-  PrintN("  5. Clear screen:      WeActCLI /p:3 /CLS")
+  PrintN("  3. Image display:     WeActCLI /p:3 /image:photo.jpg")
+  PrintN("  4. Pipe redirection:  dir | WeActCLI /p:3")
+  PrintN("  5. File redirection:  WeActCLI /p:3 < log.txt")
+  PrintN("  6. Clear screen:      WeActCLI /p:3 /CLS")
   PrintN("")
-  PrintN("SYNTAX: WeActCLI /p:X [/v][/c:YYY] [/f:" + Chr(34) + "Font Name" + Chr(34) + ":Size] [/s:Speed[:u|d]] [/center] [/CLS] [/file:" + Chr(34) + "path\name.txt" + Chr(34) + "] [" + Chr(34) + "text" + Chr(34) + "]")
+  PrintN("SYNTAX: WeActCLI /p:X [/v][/c:YYY] [/f:" + Chr(34) + "Font Name" + Chr(34) + ":Size] [/s:Speed[:u|d]] [/center] [/CLS] [/file:" + Chr(34) + "path\name.txt" + Chr(34) + "] [/image:" + Chr(34) + "path\image.jpg" + Chr(34) + "[:mode[:WxH]]] [" + Chr(34) + "text" + Chr(34) + "]")
   PrintN("")
   PrintN("PARAMETERS:")
   PrintN("  /p:X       - COM port number (REQUIRED)")
@@ -367,6 +360,13 @@ Procedure ShowHelp()
   PrintN("               Example: /file:log.txt")
   PrintN("               Example: /file:" + Chr(34) + "C:\My Files\log.txt" + Chr(34))
   PrintN("")
+  PrintN("  /image:" + Chr(34) + "path" + Chr(34) + "[:mode[:WxH]] - Display image (optional)")
+  PrintN("               Modes: 0=fit to screen (default), 1=original size, 2=centered")
+  PrintN("               Example: /image:photo.jpg")
+  PrintN("               Example: /image:logo.png:1")
+  PrintN("               Example: /image:icon.bmp:2:64x64")
+  PrintN("               Example: /image:" + Chr(34) + "C:\My Images\photo.jpg" + Chr(34) + ":0")
+  PrintN("")
   PrintN("  /v         - Verbose mode (optional)")
   PrintN("")
   PrintN("  text       - Text to display (optional, use quotes for spaces)")
@@ -377,6 +377,9 @@ Procedure ShowHelp()
   PrintN("  - In CMD: chcp 65001")
   PrintN("  - Or use text files with UTF-8 encoding")
   PrintN("")
+  PrintN("IMAGE FORMATS:")
+  PrintN("  Supported: " + WeAct_GetSupportedImageFormats())
+  PrintN("")
 EndProcedure
 
 ; =============================================
@@ -384,38 +387,17 @@ EndProcedure
 ; =============================================
 
 ; Clears the WeAct Display screen without showing any text
+; Used when /CLS parameter is specified without other content
+; Returns: #True if successful, #False if failed
 Procedure ClearDisplayOnly()
-  If verbose
-    PrintN("")
-    PrintN("=== Clear screen operation ===")
-    PrintN("Initializing WeAct Display FS...")
-    PrintN("Port: " + comPort)
-    PrintN("Mode: Clear screen only")
-    PrintN("")
-  EndIf
-  
+  ; Initialize display connection
   If WeAct_Init(comPort)
-    If verbose
-      PrintN("Display initialized successfully")
-      PrintN("Display size: " + Str(WeAct_GetDisplayWidth()) + "x" + Str(WeAct_GetDisplayHeight()))
-      PrintN("Clearing screen...")
-    EndIf
-    
+    ; Clear buffer to black and update display
     WeAct_ClearBuffer(#WEACT_BLACK)
     WeAct_UpdateDisplay()
     
-    If verbose
-      PrintN("Screen cleared")
-    EndIf
-    
-    Delay(500)
-    WeAct_Cleanup()
-    
-    If verbose
-      PrintN("Display connection closed")
-      PrintN("")
-      PrintN("=== Clear screen completed ===")
-    EndIf
+    Delay(500)                   ; Wait half second to ensure display update
+    WeAct_Cleanup()              ; Close display connection
     
     ProcedureReturn #True
   Else
@@ -434,78 +416,86 @@ EndProcedure
 ; =============================================
 
 ; Checks if a specified font is likely available on the Windows system
+; FontName: Name of font to check
+; Returns: #True if font is likely available, #False otherwise
 Procedure.i IsFontAvailable(FontName.s)
+  ; List of common Windows fonts that are usually available
   Protected commonFonts.s = "Arial,Tahoma,Verdana,Courier New,Courier,Times New Roman," +
                             "Segoe UI,Calibri,Microsoft Sans Serif,Consolas," +
                             "Comic Sans MS,Impact,Lucida Console"
   
   Protected i.i
   For i = 1 To CountString(commonFonts, ",") + 1
+    ; Case-insensitive comparison
     If LCase(StringField(commonFonts, i, ",")) = LCase(FontName)
-      ProcedureReturn #True
+      ProcedureReturn #True     ; Font found in common list
     EndIf
   Next
   
+  ; Special case: "Courier" is often available even if not in list
   If LCase(FontName) = "courier"
     ProcedureReturn #True
   EndIf
   
-  ProcedureReturn #False
+  ProcedureReturn #False        ; Font not found
 EndProcedure
 
 ; Checks if a single word fits within specified maximum width using current font
+; Word: Single word to check
+; FontSize: Font size in points
+; FontName: Name of font
+; MaxWidth: Maximum allowed width in pixels
+; Returns: #True if word fits, #False if too wide
 Procedure.i CheckWordFits(Word.s, FontSize.i, FontName.s, MaxWidth.i)
+  ; Get actual pixel width of the word with specified font
   Protected wordWidth.i = WeAct_GetTextWidth(Word, FontSize, FontName)
+  ; Check if width is less than or equal to maximum allowed
   ProcedureReturn Bool(wordWidth <= MaxWidth)
 EndProcedure
 
 ; Automatically reduces font size to ensure all words fit within maximum width
+; Text: Full text containing multiple words
+; *FontSize: Pointer to font size variable (will be modified if needed)
+; FontName: Name of font
+; MaxWidth: Maximum allowed width in pixels
+; Returns: #True if text can fit (possibly with reduced font size), #False if impossible
 Procedure.i AdjustFontSizeForWords(Text.s, *FontSize.Integer, FontName.s, MaxWidth.i)
-  Protected originalSize.i = *FontSize\i
-  Protected currentSize.i = originalSize
-  Protected minSize.i = 6
+  Protected originalSize.i = *FontSize\i   ; Store original font size
+  Protected currentSize.i = originalSize   ; Current size being tested
+  Protected minSize.i = 6                  ; Minimum font size to try
   
-  ; Clean text: replace tabs with spaces and remove control characters
-  Text = ReplaceString(Text, Chr(9), " ")
-  Text = ReplaceString(Text, Chr(0), "")
+  ; Clean text: replace tabs with spaces and remove null characters
+  Text = ReplaceString(Text, Chr(9), " ")   ; Tab to space
+  Text = ReplaceString(Text, Chr(0), "")    ; Remove null chars
   
-  ; Split text into words
+  ; Split text into individual words
   Protected wordCount.i = CountString(Text, " ") + 1
   Protected i.i
   
-  ; Check each word
+  ; Try progressively smaller font sizes until all words fit
   For currentSize = originalSize To minSize Step -1
-    Protected allWordsFit.i = #True
+    Protected allWordsFit.i = #True  ; Assume all words fit at this size
     
+    ; Check each word at current font size
     For i = 1 To wordCount
       Protected word.s = StringField(Text, i, " ")
-      ; Skip empty words
+      ; Skip empty words (multiple spaces)
       If word <> ""
         If Not CheckWordFits(word, currentSize, FontName, MaxWidth)
-          allWordsFit = #False
-          Break
+          allWordsFit = #False  ; This word doesn't fit
+          Break                 ; No need to check other words
         EndIf
       EndIf
     Next
     
+    ; If all words fit at this font size, use it
     If allWordsFit
-      *FontSize\i = currentSize
-      
-      If verbose And currentSize < originalSize
-        PrintN("Warning: Font size reduced from " + Str(originalSize) + " to " + Str(currentSize))
-        PrintN("         to ensure all words fit within screen width")
-      EndIf
-      
-      ProcedureReturn #True
+      *FontSize\i = currentSize  ; Update font size
+      ProcedureReturn #True      ; Success
     EndIf
   Next
   
-  ; If words don't fit even with minimal size
-  If verbose
-    PrintN("Error: Some words don't fit even with minimal font size (6pt)")
-    PrintN("       Try enabling scroll mode with /s parameter")
-  EndIf
-  
+  ; No font size (down to 6pt) allows all words to fit
   ProcedureReturn #False
 EndProcedure
 
@@ -514,6 +504,9 @@ EndProcedure
 ; =============================================
 
 ; Determines if a string represents a command-line parameter
+; Parameters start with / or - followed by a letter
+; Text: String to check
+; Returns: #True if string is a parameter, #False otherwise
 Procedure.i IsParameter(Text.s)
   If Left(Text, 1) = "/" Or Left(Text, 1) = "-"
     ProcedureReturn #True
@@ -522,63 +515,82 @@ Procedure.i IsParameter(Text.s)
   ProcedureReturn #False
 EndProcedure
 
+; Parse image size string like "64x64" or "100x50"
+; SizeString: String containing width and height separated by 'x'
+; *Width: Pointer to width variable to store result
+; *Height: Pointer to height variable to store result
+; Returns: #True if parsing successful, #False if invalid format
+Procedure ParseImageSize(SizeString.s, *Width.Integer, *Height.Integer)
+  ; Find the 'x' separator
+  Protected xPos.i = FindString(SizeString, "x")
+  If xPos > 0
+    ; Extract width (left part) and height (right part)
+    *Width\i = Val(Left(SizeString, xPos - 1))   ; Convert left part to integer
+    *Height\i = Val(Mid(SizeString, xPos + 1))   ; Convert right part to integer
+    ProcedureReturn #True
+  EndIf
+  ProcedureReturn #False  ; No 'x' found, invalid format
+EndProcedure
+
 ; =============================================
-; ПАРСЕР КОМАНДНОЙ СТРОКИ
+; COMMAND LINE PARSER
 ; =============================================
+; Main command-line parsing function
+; Reads and processes all command-line parameters
+; Sets global variables based on parameters
+; Returns: #True if parsing successful, #False if error
 Procedure ParseCommandLine()
-  Protected paramCount = CountProgramParameters()
+  Protected paramCount = CountProgramParameters()  ; Get number of command-line arguments
   
-  ; If no parameters and no stdin, show help
+  ; If no parameters and no stdin data, show help and exit
   If paramCount = 0
-    ; Check if there's data in stdin
-    Protected stdinTest.s = ReadFromStdin()
+    Protected stdinTest.s = ReadFromStdin()  ; Check for stdin data
     If stdinTest = ""
-      ShowHelp()
+      ShowHelp()            ; No input, show help
       ProcedureReturn #False
     Else
-      ; We have stdin data, process it
+      ; We have stdin data, use it as display text
       displayText = stdinTest
     EndIf
   EndIf
   
-  ; Store all parameters in array
+  ; Store all parameters in an array for easier processing
   Dim params.s(paramCount - 1)
   Protected i.i
   For i = 0 To paramCount - 1
-    params(i) = ProgramParameter(i)
+    params(i) = ProgramParameter(i)  ; Get each parameter
   Next
   
   ; Process parameters in order
   i = 0
   While i < paramCount
-    Protected param.s = params(i)
+    Protected param.s = params(i)  ; Current parameter
     
-    If IsParameter(param)
-      Select LCase(param)
+    If IsParameter(param)  ; Check if this is a parameter (starts with / or -)
+      Select LCase(param)  ; Convert to lowercase for case-insensitive comparison
         Case "/center", "-center"
           centerText = #True
-          If verbose : PrintN("Parameter: centerText = ON") : EndIf
           
         Case "/cls", "-cls"
           clearScreenOnly = #True
-          If verbose : PrintN("Parameter: clearScreenOnly = ON") : EndIf
           
         Case "/v", "-v"
           verbose = #True
-          If verbose : PrintN("Parameter: verbose = ON") : EndIf
           
         Case "/?", "-?", "/h", "-h"
           ShowHelp()
           ProcedureReturn #False
           
         Default:
+          ; COM port parameter: /p:X or -p:X
           If Left(param, 3) = "/p:" Or Left(param, 3) = "-p:"
-            comPort = "COM" + Mid(param, 4)
-            If verbose : PrintN("Parameter: COM port = " + comPort) : EndIf
+            comPort = "COM" + Mid(param, 4)  ; Extract port number
             
+          ; Color parameter: /c:YYY or -c:YYY
           ElseIf Left(param, 3) = "/c:" Or Left(param, 3) = "-c:"
-            Protected colorName.s = LCase(Mid(param, 4))
+            Protected colorName.s = LCase(Mid(param, 4))  ; Extract color name
             
+            ; Map color names to BRG565 color constants
             Select colorName
               Case "red":     textColor = #WEACT_RED
               Case "green":   textColor = #WEACT_GREEN
@@ -593,59 +605,61 @@ Procedure ParseCommandLine()
                 PrintN("Use one of: red, green, blue, white, black, yellow, cyan, magenta")
                 ProcedureReturn #False
             EndSelect
-            If verbose : PrintN("Parameter: color = " + colorName) : EndIf
             
+          ; Font parameter: /f:"Font Name":Size or -f:"Font Name":Size
           ElseIf Left(param, 3) = "/f:" Or Left(param, 3) = "-f:"
-            Protected fontParam.s = Mid(param, 4)
+            Protected fontParam.s = Mid(param, 4)  ; Extract font parameter
             
-            If Left(fontParam, 1) = Chr(34)
-              Protected quoteEndPos.i = FindString(fontParam, Chr(34), 2)
+            ; Handle quoted font names (e.g., "Times New Roman":12)
+            If Left(fontParam, 1) = Chr(34)  ; Check for opening quote
+              Protected quoteEndPos.i = FindString(fontParam, Chr(34), 2)  ; Find closing quote
               If quoteEndPos > 0
-                fontName = Mid(fontParam, 2, quoteEndPos - 2)
+                fontName = Mid(fontParam, 2, quoteEndPos - 2)  ; Extract font name inside quotes
                 
+                ; Find colon after closing quote for font size
                 Protected sizeStartPos.i = FindString(fontParam, ":", quoteEndPos)
                 If sizeStartPos > 0
-                  fontSize = Val(Mid(fontParam, sizeStartPos + 1))
+                  fontSize = Val(Mid(fontParam, sizeStartPos + 1))  ; Extract and convert font size
                 Else
-                  fontSize = 8
+                  fontSize = 8  ; Default font size
                 EndIf
               Else
                 PrintN("Error: Missing closing quote in font name")
                 ProcedureReturn #False
               EndIf
             Else
-              Protected colonPos.i = FindString(fontParam, ":")
+              ; Unquoted font name (e.g., Arial:10)
+              Protected colonPos.i = FindString(fontParam, ":")  ; Find colon separator
               If colonPos > 0
-                fontName = Left(fontParam, colonPos - 1)
-                fontSize = Val(Mid(fontParam, colonPos + 1))
+                fontName = Left(fontParam, colonPos - 1)      ; Font name before colon
+                fontSize = Val(Mid(fontParam, colonPos + 1))  ; Font size after colon
               Else
-                fontName = fontParam
-                fontSize = 8
+                fontName = fontParam  ; No size specified, just font name
+                fontSize = 8          ; Default size
               EndIf
             EndIf
             
+            ; Validate font size range (6-32 points)
             If fontSize < 6 Or fontSize > 32
-              PrintN("Warning: Font size " + Str(fontSize) + " is outside recommended range 6-32")
-              If fontSize < 6 : fontSize = 6 : EndIf
-              If fontSize > 32 : fontSize = 32 : EndIf
+              If fontSize < 6 : fontSize = 6 : EndIf    ; Clamp to minimum
+              If fontSize > 32 : fontSize = 32 : EndIf  ; Clamp to maximum
             EndIf
             
+            ; Check if font is available, fall back to Arial if not
             If Not IsFontAvailable(fontName)
-              PrintN("Warning: Font '" + fontName + "' may not be available on this system.")
-              PrintN("Using default font 'Arial' instead.")
               fontName = "Arial"
             EndIf
             
-            If verbose : PrintN("Parameter: font = " + fontName + ", size = " + Str(fontSize)) : EndIf
-            
+          ; Scroll parameter: /s:Speed[:u|d] or -s:Speed[:u|d]
           ElseIf Left(param, 3) = "/s:" Or Left(param, 3) = "-s:"
             scrollMode = #True
-            Protected scrollParam.s = Mid(param, 4)
+            Protected scrollParam.s = Mid(param, 4)  ; Extract scroll parameter
             
-            Protected dirPos.i = FindString(scrollParam, ":")
+            Protected dirPos.i = FindString(scrollParam, ":")  ; Find direction separator
             If dirPos > 0
-              scrollSpeed = ValF(Left(scrollParam, dirPos - 1))
-              Protected direction.s = LCase(Mid(scrollParam, dirPos + 1))
+              ; Has direction specified (e.g., 25.5:u)
+              scrollSpeed = ValF(Left(scrollParam, dirPos - 1))  ; Extract speed
+              Protected direction.s = LCase(Mid(scrollParam, dirPos + 1))  ; Extract direction
               
               Select direction
                 Case "u", "up":
@@ -653,33 +667,25 @@ Procedure ParseCommandLine()
                 Case "d", "down":
                   scrollDirection = #SCROLL_DOWN
                 Default:
-                  PrintN("Warning: Unknown direction '" + direction + "'. Using 'up'.")
-                  scrollDirection = #SCROLL_UP
+                  scrollDirection = #SCROLL_UP  ; Default to up
               EndSelect
             Else
-              scrollSpeed = ValF(scrollParam)
-              scrollDirection = #SCROLL_UP
+              ; No direction specified (e.g., 25.5)
+              scrollSpeed = ValF(scrollParam)   ; Just speed
+              scrollDirection = #SCROLL_UP      ; Default direction
             EndIf
             
+            ; Validate scroll speed range (0.1-100 pixels/second)
             If scrollSpeed <= 0 Or scrollSpeed > 100
-              PrintN("Warning: Scroll speed " + StrF(scrollSpeed, 1) + " is outside recommended range 0.1-100")
               If scrollSpeed <= 0 : scrollSpeed = 10.0 : EndIf
               If scrollSpeed > 100 : scrollSpeed = 100.0 : EndIf
             EndIf
             
-            If verbose
-              PrintN("Parameter: scroll mode = ON")
-              PrintN("Parameter: scroll speed = " + StrF(scrollSpeed, 1))
-              If scrollDirection = #SCROLL_UP
-                PrintN("Parameter: scroll direction = UP")
-              Else
-                PrintN("Parameter: scroll direction = DOWN")
-              EndIf
-            EndIf
-            
+          ; File parameter: /file:"path" or -file:"path"
           ElseIf Left(param, 6) = "/file:" Or Left(param, 6) = "-file:"
-            textFile = Mid(param, 7)
+            textFile = Mid(param, 7)  ; Extract file path
             
+            ; Remove quotes if present
             If Left(textFile, 1) = Chr(34)
               textFile = Mid(textFile, 2)
             EndIf
@@ -687,7 +693,68 @@ Procedure ParseCommandLine()
               textFile = Left(textFile, Len(textFile) - 1)
             EndIf
             
-            If verbose : PrintN("Parameter: text file = " + textFile) : EndIf
+          ; Image parameter: /image:"path"[:mode[:WxH]] or -image:"path"[:mode[:WxH]]
+          ElseIf Left(param, 7) = "/image:" Or Left(param, 7) = "-image:"
+            Protected imageParam.s = Mid(param, 8)  ; Extract image parameter
+            
+            ; Extract image path (may be in quotes)
+            Protected imagePath.s
+            If Left(imageParam, 1) = Chr(34)  ; Check for opening quote
+              Protected imageQuoteEndPos.i = FindString(imageParam, Chr(34), 2)  ; Find closing quote
+              If imageQuoteEndPos > 0
+                imagePath = Mid(imageParam, 2, imageQuoteEndPos - 2)  ; Extract path inside quotes
+                imageParam = Mid(imageParam, imageQuoteEndPos + 1)    ; Remaining parameter
+              Else
+                PrintN("Error: Missing closing quote in image path")
+                ProcedureReturn #False
+              EndIf
+            Else
+              ; Unquoted path: find first colon for mode separator
+              Protected firstColon.i = FindString(imageParam, ":")
+              If firstColon > 0
+                imagePath = Left(imageParam, firstColon - 1)  ; Path before colon
+                imageParam = Mid(imageParam, firstColon + 1)  ; Mode/size after colon
+              Else
+                imagePath = imageParam  ; No mode/size, just path
+                imageParam = ""
+              EndIf
+            EndIf
+            
+            imageFile = imagePath  ; Store image file path
+            
+            ; Parse mode if present (after first colon)
+            If imageParam <> ""
+              Protected modeColon.i = FindString(imageParam, ":")  ; Find size separator
+              If modeColon > 0
+                imageMode = Val(Left(imageParam, modeColon - 1))  ; Extract mode number
+                imageParam = Mid(imageParam, modeColon + 1)       ; Size parameter
+                
+                ; Parse size if present (e.g., 64x64)
+                If imageParam <> ""
+                  ParseImageSize(imageParam, @imageWidth, @imageHeight)
+                EndIf
+              Else
+                imageMode = Val(imageParam)  ; Just mode, no size
+              EndIf
+            EndIf
+            
+          ; Quality parameter: /quality:value or -quality:value
+          ElseIf Left(param, 8) = "/quality:" Or Left(param, 8) = "-quality:"
+            Protected qualityParam.s = Mid(param, 9)  ; Extract quality parameter
+            
+            ; Map quality names to numeric values
+            Select LCase(qualityParam)
+              Case "fast", "0"
+                imageQuality = 0
+              Case "normal", "1"
+                imageQuality = 1
+              Case "high", "2"
+                imageQuality = 2
+              Case "bw", "bwfast"
+                imageQuality = 3
+              Case "bwhigh"
+                imageQuality = 4
+            EndSelect
             
           Else
             PrintN("Error: Unknown parameter '" + param + "'")
@@ -697,51 +764,64 @@ Procedure ParseCommandLine()
       EndSelect
       
     Else
-      ; This is text content (not a parameter)
+      ; This is not a parameter, it's text content to display
       displayText = param
       
+      ; Handle quoted text (e.g., "Hello World")
       If Left(displayText, 1) = Chr(34)
-        Protected quotePos.i = FindString(displayText, Chr(34), 2)
+        Protected quotePos.i = FindString(displayText, Chr(34), 2)  ; Find closing quote
         If quotePos > 0
-          displayText = Mid(displayText, 2, quotePos - 2)
+          displayText = Mid(displayText, 2, quotePos - 2)  ; Extract text inside quotes
+          
+          ; Skip any remaining parameters that are part of this quoted text
           i + 1
           While i < paramCount And params(i) <> Chr(34)
             i + 1
           Wend
         EndIf
       Else
+        ; Unquoted text: concatenate with following parameters until next parameter
         i + 1
         While i < paramCount
-          displayText + " " + params(i)
+          displayText + " " + params(i)  ; Add space and next parameter
           i + 1
         Wend
-        Break
+        Break  ; Exit loop, processed all parameters
       EndIf
     EndIf
     
-    i + 1
+    i + 1  ; Move to next parameter
   Wend
   
   ; =============================================
   ; INPUT SOURCE VALIDATION
   ; =============================================
   
-  ; 1. Check COM port (always required)
-  If comPort = "COM"
+  ; 1. COM port is always required
+  If comPort = "COM"  ; Means only "COM" without number was specified
     PrintN("Error: COM port not specified")
     PrintN("Use /p:X to specify COM port (e.g., /p:3 for COM3)")
     ProcedureReturn #False
   EndIf
   
-  ; 2. Check input sources in priority order
-  If textFile <> ""
-    ; File parameter has highest priority
-    If displayText <> "" And verbose
-      PrintN("Note: /file parameter overrides command-line text")
-    EndIf
+  ; 2. Check for multiple content sources (image, file, text)
+  Protected contentSources.i = 0
+  If textFile <> "" : contentSources + 1 : EndIf
+  If imageFile <> "" : contentSources + 1 : EndIf
+  If displayText <> "" : contentSources + 1 : EndIf
+  
+  ; 3. Process content sources in priority order
+  If imageFile <> ""
+    ; Image has highest priority
+    ; Clear other content sources when image is specified
+    displayText = ""
+    textFile = ""
     
+  ElseIf textFile <> ""
+    ; File parameter has second priority
+    ; Load text from file
     displayText = LoadTextFromFile(textFile, maxFileLines)
-    If displayText = ""
+    If displayText = ""  ; Failed to load file
       ProcedureReturn #False
     EndIf
     
@@ -752,33 +832,20 @@ Procedure ParseCommandLine()
     If stdinText <> ""
       ; Found data in stdin
       displayText = stdinText
-      If verbose
-        PrintN("Input source: Standard input (stdin)")
-      EndIf
     Else
       ; No input source found
-      PrintN("Error: No text specified")
-      PrintN("Please provide text via:")
+      PrintN("Error: No content specified")
+      PrintN("Please provide content via:")
       PrintN("  1. Command line: WeActCLI /p:3 " + Chr(34) + "text" + Chr(34))
-      PrintN("  2. File: WeActCLI /p:3 /file:log.txt")
-      PrintN("  3. Pipe: echo " + Chr(34) + "text" + Chr(34) + " | WeActCLI /p:3")
-      PrintN("  4. Or use /CLS to clear screen")
+      PrintN("  2. Image file: WeActCLI /p:3 /image:photo.jpg")
+      PrintN("  3. Text file: WeActCLI /p:3 /file:log.txt")
+      PrintN("  4. Pipe: echo " + Chr(34) + "text" + Chr(34) + " | WeActCLI /p:3")
+      PrintN("  5. Or use /CLS to clear screen")
       ProcedureReturn #False
     EndIf
   EndIf
   
-  ; All validations passed
-  If verbose
-    If textFile <> ""
-      PrintN("Input source: File: " + textFile)
-    ElseIf displayText <> "" And stdinText <> ""
-      PrintN("Input source: Standard input (stdin)")
-    ElseIf displayText <> ""
-      PrintN("Input source: Command line text")
-    EndIf
-  EndIf
-  
-  ProcedureReturn #True
+  ProcedureReturn #True  ; Command line parsing successful
 EndProcedure
 
 ; =============================================
@@ -786,43 +853,55 @@ EndProcedure
 ; =============================================
 
 ; Wraps text to multiple lines based on maximum pixel width
+; Text: Text string to wrap
+; FontSize: Font size in points
+; FontName: Name of font
+; MaxWidth: Maximum width in pixels for each line
+; *LineCount: Optional pointer to receive number of lines
+; Returns: Text with CRLF line breaks at wrap points
 Procedure.s WrapTextToLines(Text.s, FontSize.i, FontName.s, MaxWidth.i, *LineCount.Integer = 0)
-  Protected lines.s = ""
-  Protected currentLine.s = ""
-  Protected word.s = ""
-  Protected lineCount.i = 0
+  Protected lines.s = ""           ; Result text with line breaks
+  Protected currentLine.s = ""     ; Current line being built
+  Protected word.s = ""            ; Current word being built
+  Protected lineCount.i = 0        ; Number of lines created
   Protected i.i
   
-  ; Clean text
-  Text = ReplaceString(Text, Chr(9), " ")
-  Text = ReplaceString(Text, Chr(0), "")
+  ; Clean text: replace tabs with spaces, remove null characters
+  Text = ReplaceString(Text, Chr(9), " ")   ; Tab to space
+  Text = ReplaceString(Text, Chr(0), "")    ; Remove null chars
   
+  ; Process text character by character
   For i = 1 To Len(Text)
-    Protected char.s = Mid(Text, i, 1)
+    Protected char.s = Mid(Text, i, 1)  ; Get current character
     
+    ; Check for word boundaries: space or line break characters
     If char = " " Or char = Chr(10) Or char = Chr(13)
-      If word <> ""
+      If word <> ""  ; We have a complete word
         If currentLine = ""
+          ; First word on line
           currentLine = word
         Else
+          ; Test if adding this word exceeds max width
           Protected testLine.s = currentLine + " " + word
           Protected testWidth.i = WeAct_GetTextWidth(testLine, FontSize, FontName)
           
           If testWidth <= MaxWidth
+            ; Word fits, add to current line
             currentLine = testLine
           Else
+            ; Word doesn't fit, start new line
             If lines <> ""
-              lines + #CRLF$
+              lines + #CRLF$  ; Add line break
             EndIf
-            lines + currentLine
-            lineCount + 1
-            currentLine = word
+            lines + currentLine  ; Add completed line
+            lineCount + 1        ; Increment line count
+            currentLine = word   ; Start new line with current word
           EndIf
         EndIf
-        word = ""
+        word = ""  ; Reset word for next word
       EndIf
       
-      ; Handle explicit line breaks
+      ; Handle explicit line breaks (CR or LF)
       If char = Chr(10) Or char = Chr(13)
         If currentLine <> ""
           If lines <> ""
@@ -834,11 +913,11 @@ Procedure.s WrapTextToLines(Text.s, FontSize.i, FontName.s, MaxWidth.i, *LineCou
         EndIf
       EndIf
     Else
-      word + char
+      word + char  ; Add character to current word
     EndIf
   Next
   
-  ; Process final word
+  ; Process final word (text ended without space)
   If word <> ""
     If currentLine = ""
       currentLine = word
@@ -859,7 +938,7 @@ Procedure.s WrapTextToLines(Text.s, FontSize.i, FontName.s, MaxWidth.i, *LineCou
     EndIf
   EndIf
   
-  ; Add final line
+  ; Add final line if not empty
   If currentLine <> ""
     If lines <> ""
       lines + #CRLF$
@@ -868,6 +947,7 @@ Procedure.s WrapTextToLines(Text.s, FontSize.i, FontName.s, MaxWidth.i, *LineCou
     lineCount + 1
   EndIf
   
+  ; Return line count if pointer provided
   If *LineCount
     *LineCount\i = lineCount
   EndIf
@@ -876,22 +956,22 @@ Procedure.s WrapTextToLines(Text.s, FontSize.i, FontName.s, MaxWidth.i, *LineCou
 EndProcedure
 
 ; Calculates X position for text based on centering setting
+; Text: Text string to position
+; FontSize: Font size in points
+; FontName: Name of font
+; ScreenWidth: Width of display in pixels
+; Returns: X coordinate for text (centered or left-aligned)
 Procedure.i GetTextPositionX(Text.s, FontSize.i, FontName.s, ScreenWidth.i)
   Protected textWidth.i = WeAct_GetTextWidth(Text, FontSize, FontName)
   
   If centerText
+    ; Center text horizontally
     Protected centeredX.i = (ScreenWidth - textWidth) / 2
-    If centeredX < 0 : centeredX = 0 : EndIf
-    
-    If verbose
-      PrintN("Centering text: '" + Text + "'")
-      PrintN("  Screen width: " + Str(ScreenWidth))
-      PrintN("  Text width: " + Str(textWidth))
-      PrintN("  Calculated X: " + Str(centeredX))
-    EndIf
+    If centeredX < 0 : centeredX = 0 : EndIf  ; Clamp to 0 if negative
     
     ProcedureReturn centeredX
   Else
+    ; Left-align with 5 pixel margin
     ProcedureReturn 5
   EndIf
 EndProcedure
@@ -901,30 +981,26 @@ EndProcedure
 ; =============================================
 
 ; Displays text with smooth vertical scrolling animation
+; Text: Text string to scroll
+; Color: Text color in BRG565 format
+; FontName: Name of font
+; FontSize: Font size in points
+; Speed: Scroll speed in pixels per second
+; Direction: Scroll direction (#SCROLL_UP or #SCROLL_DOWN)
+; Returns: #True if successful, #False if failed
 Procedure DisplayTextWithScrolling(Text.s, Color.i, FontName.s, FontSize.i, Speed.f, Direction.i)
-  If verbose
-    PrintN("Starting scrolling mode")
-    PrintN("Scroll speed: " + StrF(Speed, 1) + " pixels/second")
-    If Direction = #SCROLL_UP
-      PrintN("Scroll direction: UP")
-    Else
-      PrintN("Scroll direction: DOWN")
-    EndIf
-    If centerText
-      PrintN("Text centering: ON")
-    EndIf
-  EndIf
+  Protected screenWidth.i = WeAct_GetDisplayWidth()   ; Get display width
+  Protected screenHeight.i = WeAct_GetDisplayHeight() ; Get display height
   
-  Protected screenWidth.i = WeAct_GetDisplayWidth()
-  Protected screenHeight.i = WeAct_GetDisplayHeight()
-  
+  ; Calculate maximum width for text wrapping
   Protected maxWidth.i
   If centerText
-    maxWidth = screenWidth - 20
+    maxWidth = screenWidth - 20  ; Center mode: use almost full width
   Else
-    maxWidth = wrapWidth
+    maxWidth = wrapWidth         ; Left-align: use configured wrap width
   EndIf
   
+  ; Adjust font size if needed to fit words within maxWidth
   Protected adjustedFontSize.i = FontSize
   If Not AdjustFontSizeForWords(Text, @adjustedFontSize, FontName, maxWidth)
     PrintN("Error: Could not fit text with current font settings")
@@ -932,12 +1008,10 @@ Procedure DisplayTextWithScrolling(Text.s, Color.i, FontName.s, FontSize.i, Spee
   EndIf
   
   If adjustedFontSize <> FontSize
-    FontSize = adjustedFontSize
-    If verbose
-      PrintN("Adjusted font size to: " + Str(FontSize) + "pt")
-    EndIf
+    FontSize = adjustedFontSize  ; Use adjusted font size
   EndIf
   
+  ; Wrap text into multiple lines
   Protected lineCount.i
   Protected wrappedText.s = WrapTextToLines(Text, FontSize, FontName, maxWidth, @lineCount)
   
@@ -946,129 +1020,137 @@ Procedure DisplayTextWithScrolling(Text.s, Color.i, FontName.s, FontSize.i, Spee
     ProcedureReturn #False
   EndIf
   
-  Protected lineHeight.i = FontSize + lineSpacing
-  Protected totalTextHeight.i = lineCount * lineHeight
+  ; Calculate text dimensions
+  Protected lineHeight.i = FontSize + lineSpacing  ; Height of each line
+  Protected totalTextHeight.i = lineCount * lineHeight  ; Total height of all lines
   
-  If verbose
-    PrintN("Text wrapped into " + Str(lineCount) + " lines")
-    PrintN("Text height: " + Str(totalTextHeight) + " pixels")
-    PrintN("Screen height: " + Str(screenHeight) + " pixels")
-    PrintN("Screen width: " + Str(screenWidth) + " pixels")
-    PrintN("Max width for wrapping: " + Str(maxWidth) + " pixels")
-  EndIf
-  
-  Dim linePositionsX.i(lineCount)
-  Dim lineTexts.s(lineCount)
+  ; Store each line's text and X position
+  Dim linePositionsX.i(lineCount)  ; X position for each line
+  Dim lineTexts.s(lineCount)       ; Text for each line
   Protected j.i
   For j = 1 To lineCount
-    Protected lineText.s = StringField(wrappedText, j, #CRLF$)
+    Protected lineText.s = StringField(wrappedText, j, #CRLF$)  ; Extract line
     lineTexts(j - 1) = lineText
     linePositionsX(j - 1) = GetTextPositionX(lineText, FontSize, FontName, screenWidth)
   Next
   
-  Protected frameDelay.i = 33
+  ; Calculate animation parameters
+  Protected frameDelay.i = 33  ; Delay between frames in milliseconds (~30 FPS)
+  ; Pixels to move per frame: speed * (frameDelay/1000)
   Protected pixelsPerFrame.f = Speed * (frameDelay / 1000.0)
   
-  If verbose
-    PrintN("Frame delay: " + Str(frameDelay) + "ms (" + Str(1000/frameDelay) + " FPS)")
-    PrintN("Pixels per frame: " + StrF(pixelsPerFrame, 2))
-  EndIf
-  
-  Protected currentY.f
-  Protected startY.f
-  Protected endY.f
+  ; Set initial scroll position based on direction
+  Protected currentY.f  ; Current Y position (floating for smooth movement)
+  Protected startY.f    ; Starting Y position
+  Protected endY.f      ; Ending Y position
   
   If Direction = #SCROLL_UP
-    currentY = screenHeight
-    startY = screenHeight
-    endY = -totalTextHeight
+    ; Start at bottom, scroll up until text disappears at top
+    currentY = screenHeight     ; Start below screen
+    startY = screenHeight       ; Starting position
+    endY = -totalTextHeight     ; End when text completely above screen
   Else
-    currentY = -totalTextHeight
-    startY = -totalTextHeight
-    endY = screenHeight
+    ; Start at top, scroll down until text disappears at bottom
+    currentY = -totalTextHeight ; Start above screen
+    startY = -totalTextHeight   ; Starting position
+    endY = screenHeight         ; End when text completely below screen
   EndIf
   
+  ; Accumulator for fractional pixels (for smooth scrolling)
   Protected accumulatedPixels.f = 0
-  Protected keepScrolling.i = #True
+  Protected keepScrolling.i = #True  ; Continue scrolling flag
   
+  ; Main scroll animation loop
   While keepScrolling
+    ; Add pixels for this frame
     accumulatedPixels + pixelsPerFrame
+    
+    ; Move integer pixels when accumulated enough
     If accumulatedPixels >= 1.0
-      Protected pixelsToMove.i = Int(accumulatedPixels)
+      Protected pixelsToMove.i = Int(accumulatedPixels)  ; Whole pixels to move
       If Direction = #SCROLL_UP
-        currentY - pixelsToMove
+        currentY - pixelsToMove  ; Move up
       Else
-        currentY + pixelsToMove
+        currentY + pixelsToMove  ; Move down
       EndIf
-      accumulatedPixels - pixelsToMove
+      accumulatedPixels - pixelsToMove  ; Remove moved pixels from accumulator
     EndIf
     
+    ; Clear screen for new frame
     WeAct_ClearBuffer(#WEACT_BLACK)
     
-    Protected anyVisible.i = #False
+    ; Draw each line at current scroll position
+    Protected anyVisible.i = #False  ; Flag if any line is visible
     For j = 0 To lineCount - 1
-      Protected lineY.i = j * lineHeight
-      Protected screenY.i
+      Protected lineY.i = j * lineHeight  ; Line's position within text block
+      Protected screenY.i = lineY + Int(currentY)  ; Line's position on screen
       
-      screenY = lineY + Int(currentY)
-      
+      ; Only draw if line is (partially) visible on screen
       If screenY >= -lineHeight And screenY < screenHeight
         anyVisible = #True
         WeAct_DrawTextSystemFont(linePositionsX(j), screenY, lineTexts(j), Color, FontSize, FontName)
       EndIf
     Next
     
+    ; Update display with new frame
     WeAct_UpdateDisplay()
     
+    ; Check if scrolling should stop (text completely scrolled off)
     If Direction = #SCROLL_UP
       If currentY <= endY
-        keepScrolling = #False
+        keepScrolling = #False  ; Text completely above screen
       EndIf
     Else
       If currentY >= endY
-        keepScrolling = #False
+        keepScrolling = #False  ; Text completely below screen
       EndIf
     EndIf
     
+    ; Safety check: stop if no lines visible for too long
     Static noVisibleCounter.i = 0
     If Not anyVisible
       noVisibleCounter + 1
-      If noVisibleCounter > 15
+      If noVisibleCounter > 15  ; About 0.5 second with no visible lines
         keepScrolling = #False
       EndIf
     Else
-      noVisibleCounter = 0
+      noVisibleCounter = 0  ; Reset counter when lines are visible
     EndIf
     
+    ; Wait for next frame
     Delay(frameDelay)
   Wend
   
+  ; Clear screen after scrolling completes
   WeAct_ClearBuffer(#WEACT_BLACK)
   WeAct_UpdateDisplay()
   
-  noVisibleCounter = 0
+  noVisibleCounter = 0  ; Reset static counter for next use
   
-  If verbose
-    PrintN("Scroll animation completed")
-  EndIf
-  
-  Delay(300)
+  Delay(300)  ; Brief pause after scrolling
   
   ProcedureReturn #True
 EndProcedure
 
 ; Displays static (non-scrolling) text on the screen
+; Text: Text string to display
+; Color: Text color in BRG565 format
+; FontName: Name of font
+; FontSize: Font size in points
+; Returns: #True if successful, #False if failed
 Procedure DisplayStaticText(Text.s, Color.i, FontName.s, FontSize.i)
-  Protected screenWidth.i = WeAct_GetDisplayWidth()
-  Protected screenHeight.i = WeAct_GetDisplayHeight()
+  Protected screenWidth.i = WeAct_GetDisplayWidth()   ; Get display width
+  Protected screenHeight.i = WeAct_GetDisplayHeight() ; Get display height
   
+  ; Calculate maximum width for text wrapping
   Protected maxWidth.i
   If centerText
-    maxWidth = screenWidth - 20
+    maxWidth = screenWidth - 20  ; Center mode
   Else
-    maxWidth = wrapWidth
+    maxWidth = wrapWidth         ; Left-align mode
   EndIf
   
+  ; Adjust font size if needed
   Protected adjustedFontSize.i = FontSize
   If Not AdjustFontSizeForWords(Text, @adjustedFontSize, FontName, maxWidth)
     PrintN("Error: Could not fit text with current font settings")
@@ -1076,12 +1158,10 @@ Procedure DisplayStaticText(Text.s, Color.i, FontName.s, FontSize.i)
   EndIf
   
   If adjustedFontSize <> FontSize
-    FontSize = adjustedFontSize
-    If verbose
-      PrintN("Adjusted font size to: " + Str(FontSize) + "pt")
-    EndIf
+    FontSize = adjustedFontSize  ; Use adjusted font size
   EndIf
   
+  ; Wrap text into lines
   Protected lineCount.i
   Protected wrappedText.s = WrapTextToLines(Text, FontSize, FontName, maxWidth, @lineCount)
   
@@ -1090,28 +1170,26 @@ Procedure DisplayStaticText(Text.s, Color.i, FontName.s, FontSize.i)
     ProcedureReturn #False
   EndIf
   
+  ; Clear screen
   WeAct_ClearBuffer(#WEACT_BLACK)
   
-  Protected lineHeight.i = FontSize + lineSpacing
-  Protected totalHeight.i = lineCount * lineHeight
-  Protected startY.i = (screenHeight - totalHeight) / 2
-  If startY < 5 : startY = 5 : EndIf
+  ; Calculate vertical positioning (center text vertically)
+  Protected lineHeight.i = FontSize + lineSpacing  ; Height of each line
+  Protected totalHeight.i = lineCount * lineHeight  ; Total height of all lines
+  Protected startY.i = (screenHeight - totalHeight) / 2  ; Center vertically
+  If startY < 5 : startY = 5 : EndIf  ; Minimum 5 pixel margin
   
-  If verbose
-    PrintN("Displaying " + Str(lineCount) + " lines")
-    PrintN("Vertical position: Y = " + Str(startY))
-    PrintN("Line height: " + Str(lineHeight) + " pixels")
-  EndIf
-  
+  ; Draw each line
   Protected i.i
   For i = 1 To lineCount
-    Protected line.s = StringField(wrappedText, i, #CRLF$)
-    Protected lineX.i = GetTextPositionX(line, FontSize, FontName, screenWidth)
+    Protected line.s = StringField(wrappedText, i, #CRLF$)  ; Extract line
+    Protected lineX.i = GetTextPositionX(line, FontSize, FontName, screenWidth)  ; Get X position
     
-    WeAct_DrawTextSystemFont(lineX, startY, line, Color, FontSize, FontName)
-    startY + lineHeight
+    WeAct_DrawTextSystemFont(lineX, startY, line, Color, FontSize, FontName)  ; Draw line
+    startY + lineHeight  ; Move to next line position
   Next
   
+  ; Update display and show text for 2 seconds
   WeAct_UpdateDisplay()
   Delay(2000)
   
@@ -1121,77 +1199,36 @@ EndProcedure
 ; =============================================
 ; MAIN DISPLAY CONTROL FUNCTION
 ; =============================================
-
-Procedure DisplayText()
-  If verbose
-    PrintN("")
-    PrintN("=== Starting display operation ===")
-    PrintN("Initializing WeAct Display FS...")
-    PrintN("Port: " + comPort)
-    If clearScreenOnly
-      PrintN("Mode: Clear screen only")
-    Else
-      If textFile <> ""
-        PrintN("Source: Text file: " + textFile)
-      Else
-        PrintN("Source: Command line text")
-      EndIf
-      
-      If Len(displayText) > 100
-        PrintN("Text preview: " + Left(displayText, 100) + "...")
-      Else
-        PrintN("Text: " + displayText)
-      EndIf
-      PrintN("Text length: " + Str(Len(displayText)) + " characters")
-    EndIf
-    PrintN("Font: " + fontName + " (" + Str(fontSize) + "pt)")
-    PrintN("Text color: " + Str(textColor))
-    
-    If scrollMode
-      PrintN("Scroll mode: ON")
-      PrintN("Scroll speed: " + StrF(scrollSpeed, 1) + " px/s")
-      If scrollDirection = #SCROLL_UP
-        PrintN("Scroll direction: UP")
-      Else
-        PrintN("Scroll direction: DOWN")
-      EndIf
-    Else
-      PrintN("Scroll mode: OFF")
-    EndIf
-    
-    PrintN("Text centering: " + IIf(centerText, "ON", "OFF"))
-    PrintN("Clear screen only: " + IIf(clearScreenOnly, "ON", "OFF"))
-    PrintN("")
-  EndIf
-  
+; Main function that coordinates display operations
+; Calls appropriate display functions based on parameters
+; Returns: #True if successful, #False if failed
+Procedure DisplayContent()
+  ; Initialize display connection
   If WeAct_Init(comPort)
-    If verbose
-      Protected displayWidth.i = WeAct_GetDisplayWidth()
-      Protected displayHeight.i = WeAct_GetDisplayHeight()
-      PrintN("Display initialized successfully")
-      PrintN("Display size: " + Str(displayWidth) + "x" + Str(displayHeight))
-      PrintN("centerText global variable = " + Str(centerText))
-    EndIf
     
     If clearScreenOnly
+      ; Clear screen only mode
       WeAct_ClearBuffer(#WEACT_BLACK)
       WeAct_UpdateDisplay()
       Delay(500)
+    ElseIf imageFile <> ""
+      ; Image display mode
+      DisplayImageFromFile(imageFile, imageMode, imageWidth, imageHeight)
     ElseIf scrollMode
+      ; Scrolling text mode
       DisplayTextWithScrolling(displayText, textColor, fontName, fontSize, scrollSpeed, scrollDirection)
     Else
+      ; Static text mode
       DisplayStaticText(displayText, textColor, fontName, fontSize)
     EndIf
     
+    ; Clean up display connection
     WeAct_Cleanup()
-    
-    If verbose
-      PrintN("Display connection closed")
-    EndIf
     
     ProcedureReturn #True
     
   Else
+    ; Failed to initialize display
     PrintN("Error: Failed to initialize display on " + comPort)
     PrintN("Error details: " + WeAct_GetLastError())
     PrintN("Please check:")
@@ -1206,35 +1243,29 @@ EndProcedure
 ; MAIN PROGRAM ENTRY POINT
 ; =============================================
 
+; Check operating system (Windows required)
 CompilerIf #PB_Compiler_OS <> #PB_OS_Windows
   PrintN("Error: This program requires Windows")
   End 1
 CompilerEndIf
 
+; Parse command line and execute appropriate action
 If ParseCommandLine()
-  If clearScreenOnly And displayText = ""
+  If clearScreenOnly And displayText = "" And imageFile = ""
+    ; Only clear screen, no content to display
     ClearDisplayOnly()
   Else
-    DisplayText()
+    ; Display content (text or image)
+    DisplayContent()
   EndIf
   
-  If verbose
-    PrintN("")
-    PrintN("=== Operation completed successfully ===")
-  EndIf
-  
-  End 0
+  End 0  ; Exit with success code
 Else
-  End 1
+  End 1  ; Exit with error code
 EndIf
 
-; =============================================
-; COMPILER DIRECTIVES
-; =============================================
 ; IDE Options = PureBasic 6.21 (Windows - x86)
 ; ExecutableFormat = Console
-; CursorPosition = 956
-; FirstLine = 948
-; Folding = ---
+; Folding = ----
 ; EnableXP
-; Executable = WeActCLI.exe
+; Executable = WeactCLI.exe
