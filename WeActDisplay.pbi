@@ -1534,6 +1534,58 @@ Procedure WeAct_DrawSpinner(cx, cy, radius, angle.f, Color = #WEACT_WHITE)
   Next
 EndProcedure
 
+
+; { OVERLAY MODE INIT }
+
+Procedure WeAct_InitNoClear(PortName.s = "COM3")
+  ; Initialize connection to WeAct display WITHOUT clearing screen
+  ; Use this for overlay mode to preserve existing screen content
+  ; PortName: Serial port name (e.g., "COM3")
+  
+  ; Open serial port
+  WeActDisplay\SerialPort = OpenSerialPort(#PB_Any, PortName, #WEACT_BAUDRATE, 
+                                          #PB_SerialPort_NoParity, 8, 1, 
+                                          #PB_SerialPort_NoHandshake, 2048, 2048)
+  
+  If WeActDisplay\SerialPort
+    ; Store connection parameters
+    WeActDisplay\PortName = PortName
+    WeActDisplay\IsConnected = #True
+    WeActDisplay\CurrentOrientation = #WEACT_LANDSCAPE
+    WeActDisplay\CurrentBrightness = 255
+    WeActDisplay\DisplayWidth = #WEACT_DISPLAY_WIDTH
+    WeActDisplay\DisplayHeight = #WEACT_DISPLAY_HEIGHT
+    WeActDisplay\BufferSize = #WEACT_MAX_BUFFER_SIZE
+    
+    ; Allocate memory for double buffering if not already allocated
+    If Not WeActDisplay\FrameBuffer
+      WeActDisplay\FrameBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
+    EndIf
+    If Not WeActDisplay\BackBuffer
+      WeActDisplay\BackBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
+    EndIf
+    
+    If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
+      ; DON'T clear buffers - preserve content for overlay
+      ; DON'T call WeAct_SetOrientation - avoid screen refresh
+      
+      ; Initialize image decoders
+      WeAct_InitImageDecoders()
+      
+      WeActDisplay\LastError = ""
+      ProcedureReturn #True
+    Else
+      WeActDisplay\IsConnected = #False
+      WeActDisplay\LastError = "Failed to allocate memory buffers"
+      ProcedureReturn #False
+    EndIf
+  Else
+    WeActDisplay\IsConnected = #False
+    WeActDisplay\LastError = "Failed to open serial port " + PortName
+    ProcedureReturn #False
+  EndIf
+EndProcedure
+
 ; { CLEANUP }
 
 Procedure WeAct_Cleanup()
