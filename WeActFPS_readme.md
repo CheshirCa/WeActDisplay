@@ -159,19 +159,6 @@ Executable = WeActFPS.exe
 ## 📝 License
 This project is provided as-is for educational and personal use. Commercial use may require additional permissions.
 
-## 🤝 Contributing
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📞 Support
-For issues and questions:
-1. Check existing Issues on GitHub
-2. Verify COM port settings
-3. Ensure WeAct display firmware is up to date
-4. Review verbose output for error messages
-
 ---
 
 # WeAct Display FPS Monitor (Русская версия)
@@ -334,4 +321,5 @@ Executable = WeActFPS.exe
 
 ## 📝 Лицензия
 Проект предоставляется "как есть" для образовательного и личного использования. Коммерческое использование может требовать дополнительных разрешений.
+
 
