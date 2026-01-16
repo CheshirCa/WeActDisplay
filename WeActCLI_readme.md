@@ -1,483 +1,395 @@
-# WeActCLI - Display Utility for WeAct FS Display
+# WeActCLI - Console Text and Image Display Utility for WeAct Display FS
 
-[Русская версия](#weactcli---утилита-для-дисплея-weact-fs)
-
-A console utility for displaying text and images on WeAct FS displays via serial port. Supports text scrolling, image display, and various input methods.
-
-## Features
-
-- **Text display** with automatic wrapping and font management
-- **Image display** with multiple scaling modes
-- **Text scrolling** with adjustable speed and direction
-- **Multiple input sources**: command line, files, stdin
-- **Encoding support** including UTF-8, Windows-1251, CP866
-- **Screen clearing** functionality
-
-## Requirements
-
-- **Windows** (Windows 10/11 recommended)
-- **WeAct FS display** connected via USB (virtual COM port)
-- **CH340/CH341 drivers** if required for USB-UART adapter
-
-## Installation
-
-1. Download `WeActCLI.exe` from the releases section
-2. Place in any directory (e.g., `C:\Tools\`)
-3. Optional: Add to system PATH for command-line access
-
-## Quick Start
-
-```bash
-# Display text
-WeActCLI /p:3 "Hello World"
-
-# Show image
-WeActCLI /p:3 /image:photo.jpg
-
-# Scroll text
-WeActCLI /p:3 /s:30 "Long scrolling text..."
-
-# Clear screen
-WeActCLI /p:3 /CLS
-```
-
-## Complete Syntax
-
-```
-WeActCLI /p:X [/v][/c:YYY] [/f:"Font:Size"] [/s:Speed[:u|d]] [/center] [/CLS]
-           [/file:"path.txt"] [/image:"path.jpg"[:mode[:WxH]]] [/quality:level]
-           "text"
-```
-
-## Parameters
-
-### Required
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `/p:X` | COM port number | `/p:3` for COM3 |
-
-### Text Display
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `"text"` | Text to display (quotes for spaces) | `"Sample text"` |
-| `/c:YYY` | Text color | `/c:green` |
-| `/f:"Font:Size"` | Font name and size | `/f:Arial:10` |
-| `/center` | Center text horizontally | `/center` |
-| `/s:Speed[:u|d]` | Scroll speed and direction | `/s:30`, `/s:25.5:d` |
-
-### File Operations
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `/file:"path"` | Load text from file | `/file:log.txt` |
-| `/image:"path"` | Display image file | `/image:photo.jpg` |
-
-### Image Parameters
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `:mode` | Image mode: 0=fit, 1=original, 2=centered | `/image:pic.jpg:1` |
-| `:WxH` | Custom size for mode 2 | `/image:icon.png:2:64x64` |
-| `/quality:level` | Image quality: fast/normal/high/bwfast/bwhigh | `/quality:high` |
-
-### System
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `/CLS` | Clear screen | `/CLS` |
-| `/v` | Verbose output | `/v` |
-| `/?`, `/h` | Show help | `/?` |
-
-## Color Options
-
-Available colors: `red`, `green`, `blue`, `white` (default), `black`, `yellow`, `cyan`, `magenta`
-
-## Usage Examples
-
-### Basic Text Display
-```bash
-# Simple text
-WeActCLI /p:3 "System Ready"
-
-# Colored text with custom font
-WeActCLI /p:4 /c:green /f:"Courier New":12 "OK: Tests passed"
-
-# Centered warning
-WeActCLI /p:3 /center /c:yellow "WARNING: High temperature"
-```
-
-### Scrolling Text
-```bash
-# Scroll up at 30px/sec
-WeActCLI /p:3 /s:30 "News: Maintenance scheduled for tomorrow..."
-
-# Scroll down at 25.5px/sec
-WeActCLI /p:3 /s:25.5:d "Log: User login, File upload, DB update..."
-```
-
-### File Operations
-```bash
-# Display text file
-WeActCLI /p:3 /file:status.txt
-
-# Display log with scrolling
-WeActCLI /p:3 /file:app.log /s:20
-
-# Clear screen
-WeActCLI /p:3 /CLS
-```
-
-### Image Display
-```bash
-# Full screen image
-WeActCLI /p:3 /image:wallpaper.jpg
-
-# Original size
-WeActCLI /p:3 /image:icon.png:1
-
-# Centered with custom size
-WeActCLI /p:3 /image:logo.png:2:64x64
-
-# High quality
-WeActCLI /p:3 /image:photo.jpg /quality:high
-```
-
-### Input Redirection
-```bash
-# Pipe from command
-echo "Time: %time%" | WeActCLI /p:3
-
-# Redirect from file
-WeActCLI /p:3 < data.txt
-
-# PowerShell
-Get-Process | Select-Object -First 5 Name,CPU | WeActCLI /p:3
-```
-
-## Image Display Modes
-
-**Mode 0: Fit to Screen** (default)
-- Scales image to fit display while maintaining aspect ratio
-```bash
-WeActCLI /p:3 /image:photo.jpg
-```
-
-**Mode 1: Original Size**
-- Displays at original resolution from top-left corner
-```bash
-WeActCLI /p:3 /image:icon.png:1
-```
-
-**Mode 2: Centered with Custom Size**
-- Centers image with specified dimensions
-```bash
-WeActCLI /p:3 /image:logo.png:2:100x50
-```
-
-## Image Quality Settings
-
-| Level | Description | Use Case |
-|-------|-------------|----------|
-| `fast` | Fast rendering, lower quality | Simple icons |
-| `normal` | Balanced quality/speed | Default |
-| `high` | Best quality, slower | Photographs |
-| `bwfast` | Fast black and white | Text images |
-| `bwhigh` | High quality black and white | Monochrome images |
-
-## Encoding Support
-
-For Russian/Cyrillic text:
-
-**PowerShell:**
-```powershell
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-```
-
-**CMD:**
-```cmd
-chcp 65001
-```
-
-**Recommended:**
-```bash
-WeActCLI /p:3 /file:utf8_text.txt
-```
-
-## Supported Image Formats
-
-Formats supported by PureBasic's `LoadImage()`:
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- BMP (.bmp)
-- TIFF (.tif, .tiff)
-
-## Error Handling
-
-Common issues:
-
-1. **"Failed to initialize display"**
-   - Check COM port number in Device Manager
-   - Verify USB connection
-   - Ensure drivers are installed
-
-2. **"File not found"**
-   - Use full paths
-   - Enclose paths with spaces in quotes
-
-3. **Text encoding issues**
-   - Use UTF-8 encoded files
-   - Set console encoding to UTF-8
-
-## Return Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Error |
-
-## Building from Source
-
-Requires PureBasic 6.21+:
-
-```bash
-pbcompiler WeActCLI.pb /CONSOLE /EXE "WeActCLI.exe"
-```
+[English](#english) | [Русский](#русский)
 
 ---
 
-# WeActCLI - Утилита для дисплея WeAct FS
+## English
 
-Консольная утилита для вывода текста и изображений на дисплей WeAct FS через COM-порт. Поддерживает прокрутку текста, отображение изображений и различные источники ввода.
+WeActCLI is a powerful command-line utility for displaying text and images on WeAct Display FS via serial port (COM port). It supports multiple input sources, text formatting, scrolling, and image display modes.
 
-## Возможности
+### Features
 
-- **Вывод текста** с автоматическим переносом и управлением шрифтами
-- **Отображение изображений** с несколькими режимами масштабирования
-- **Прокрутка текста** с настраиваемой скоростью и направлением
-- **Несколько источников ввода**: командная строка, файлы, stdin
-- **Поддержка кодировок** включая UTF-8, Windows-1251, CP866
-- **Функция очистки экрана**
+- **Multiple Input Sources**:
+  - Direct command-line text input
+  - Text file loading with UTF-8 support
+  - Image file display (multiple formats)
+  - Pipe/redirect input from other programs
+  - Standard input (stdin) support
 
-## Требования
+- **Text Display Options**:
+  - Static text display with word wrapping
+  - Smooth vertical scrolling (up/down)
+  - Customizable font, size, and color
+  - Horizontal text centering
+  - Precise text positioning (X/Y coordinates)
+  - Overlay mode (display text without clearing screen)
 
-- **Windows** (рекомендуется Windows 10/11)
-- **Дисплей WeAct FS** подключенный по USB (виртуальный COM-порт)
-- **Драйверы CH340/CH341** если требуется для USB-UART адаптера
+- **Image Display Options**:
+  - Fit to screen (maintain aspect ratio)
+  - Original size display
+  - Centered display with custom size
+  - Multiple image quality settings
 
-## Установка
+- **Advanced Features**:
+  - Automatic font size adjustment to fit long words
+  - Text line spacing control
+  - Screen clearing option
+  - Verbose mode for debugging
+  - Comprehensive help system
+  - Windows console encoding support (UTF-8, Windows-1251, CP866)
 
-1. Скачайте `WeActCLI.exe` из раздела релизов
-2. Поместите в любую директорию (например, `C:\Tools\`)
-3. Опционально: добавьте в системный PATH для доступа из командной строки
+### Supported Image Formats
+The utility supports all formats provided by the underlying WeAct display library, typically including:
+- JPEG/JPG
+- PNG
+- BMP
+- GIF
 
-## Быстрый старт
+### Installation
+
+1. **Prerequisites**:
+   - Windows operating system
+   - WeAct Display FS hardware
+   - USB-to-serial drivers installed (if needed)
+   - PureBasic compiler (for building from source)
+
+2. **Binary Installation**:
+   Download the pre-compiled `WeActCLI.exe` from the releases page.
+
+3. **Building from Source**:
+   ```bash
+   # Requires PureBasic 6.30 or later
+   pbcompiler WeActCLI.pb /CONSOLE /EXE WeActCLI.exe
+   ```
+
+### Command Line Syntax
 
 ```bash
-# Вывести текст
-WeActCLI /p:3 "Привет мир"
-
-# Показать изображение
-WeActCLI /p:3 /image:photo.jpg
-
-# Прокрутить текст
-WeActCLI /p:3 /s:30 "Длинный текст для прокрутки..."
-
-# Очистить экран
-WeActCLI /p:3 /CLS
+WeActCLI /p:X [/v][/c:YYY] [/f:"Font Name":Size] [/s:Speed[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:"path\name.txt"] [/image:"path\image.jpg"[:mode[:WxH]]] ["text"]
 ```
 
-## Полный синтаксис
+### Parameters
 
-```
-WeActCLI /p:X [/v][/c:YYY] [/f:"Шрифт:Размер"] [/s:Скорость[:u|d]] [/center] [/CLS]
-           [/file:"путь.txt"] [/image:"путь.jpg"[:режим[:ШxВ]]] [/quality:уровень]
-           "текст"
-```
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `/p:X` | **Required** COM port number | `/p:3` for COM3 |
+| `/c:YYY` | Text color | `/c:red`, `/c:blue`, `/c:white` |
+| `/f:"Font":Size` | Font name and size | `/f:Arial:10`, `/f:"Times New Roman":12` |
+| `/s:Speed[:u\|d]` | Scroll speed and direction | `/s:25.5`, `/s:40:d` |
+| `/center` | Center text horizontally | |
+| `/x:X` | X coordinate for text (overlay mode) | `/x:10` |
+| `/y:Y` | Y coordinate for text (overlay mode) | `/y:20` |
+| `/CLS` | Clear screen only | |
+| `/file:"path"` | Load text from file | `/file:log.txt` |
+| `/image:"path"[:mode[:WxH]]` | Display image | `/image:photo.jpg:0`, `/image:logo.png:2:64x64` |
+| `/v` | Verbose mode | |
+| `text` | Text to display (use quotes for spaces) | `"Hello World"` |
 
-## Параметры
+### Color Options
+- `red`, `green`, `blue`, `white`, `black`, `yellow`, `cyan`, `magenta`
 
-### Обязательные
-| Параметр | Описание | Пример |
-|----------|----------|---------|
-| `/p:X` | Номер COM-порта | `/p:3` для COM3 |
+### Image Modes
+- `0` - Fit to screen (default)
+- `1` - Original size at position (0,0)
+- `2` - Centered with optional custom size
 
-### Вывод текста
-| Параметр | Описание | Пример |
-|----------|----------|---------|
-| `"текст"` | Текст для отображения (кавычки для пробелов) | `"Пример текста"` |
-| `/c:YYY` | Цвет текста | `/c:green` |
-| `/f:"Шрифт:Размер"` | Имя шрифта и размер | `/f:Arial:10` |
-| `/center` | Центрировать текст по горизонтали | `/center` |
-| `/s:Скорость[:u|d]` | Скорость и направление прокрутки | `/s:30`, `/s:25.5:d` |
+### Usage Examples
 
-### Работа с файлами
-| Параметр | Описание | Пример |
-|----------|----------|---------|
-| `/file:"путь"` | Загрузить текст из файла | `/file:log.txt` |
-| `/image:"путь"` | Отобразить файл изображения | `/image:photo.jpg` |
+1. **Display simple text**:
+   ```bash
+   WeActCLI /p:3 "Hello World"
+   ```
 
-### Параметры изображений
-| Параметр | Описание | Пример |
-|----------|----------|---------|
-| `:режим` | Режим изображения: 0=подгонка, 1=оригинал, 2=центрирование | `/image:pic.jpg:1` |
-| `:ШxВ` | Пользовательский размер для режима 2 | `/image:icon.png:2:64x64` |
-| `/quality:уровень` | Качество: fast/normal/high/bwfast/bwhigh | `/quality:high` |
+2. **Display text with custom font and color**:
+   ```bash
+   WeActCLI /p:3 /c:red /f:Arial:12 "Warning: System Alert"
+   ```
 
-### Системные
-| Параметр | Описание | Пример |
-|----------|----------|---------|
-| `/CLS` | Очистить экран | `/CLS` |
-| `/v` | Подробный вывод | `/v` |
-| `/?`, `/h` | Показать справку | `/?` |
+3. **Display scrolling text**:
+   ```bash
+   WeActCLI /p:3 /s:25.5 "This text will scroll upwards"
+   ```
 
-## Доступные цвета
+4. **Display text from file**:
+   ```bash
+   WeActCLI /p:3 /file:log.txt
+   ```
 
-Доступные цвета: `red` (красный), `green` (зеленый), `blue` (синий), `white` (белый, по умолчанию), `black` (черный), `yellow` (желтый), `cyan` (голубой), `magenta` (пурпурный)
+5. **Display image**:
+   ```bash
+   WeActCLI /p:3 /image:photo.jpg
+   ```
 
-## Примеры использования
+6. **Display centered image with custom size**:
+   ```bash
+   WeActCLI /p:3 /image:logo.png:2:128x64
+   ```
 
-### Базовый вывод текста
-```bash
-# Простой текст
-WeActCLI /p:3 "Система готова"
+7. **Pipe text from another program**:
+   ```bash
+   echo "Current time: %time%" | WeActCLI /p:3
+   ```
 
-# Цветной текст с пользовательским шрифтом
-WeActCLI /p:4 /c:green /f:"Courier New":12 "OK: Тесты пройдены"
+8. **Clear screen only**:
+   ```bash
+   WeActCLI /p:3 /CLS
+   ```
 
-# Центрированное предупреждение
-WeActCLI /p:3 /center /c:yellow "ПРЕДУПРЕЖДЕНИЕ: Высокая температура"
-```
+9. **Display text at specific position (overlay)**:
+   ```bash
+   WeActCLI /p:3 /x:50 /y:100 "Status: OK"
+   ```
 
-### Прокрутка текста
-```bash
-# Прокрутка вверх 30px/сек
-WeActCLI /p:3 /s:30 "Новости: Техобслуживание запланировано на завтра..."
+10. **Multi-line text with line breaks**:
+    ```bash
+    WeActCLI /p:3 "Line 1\nLine 2\nLine 3"
+    ```
 
-# Прокрутка вниз 25.5px/сек
-WeActCLI /p:3 /s:25.5:d "Лог: Вход пользователя, Загрузка файла, Обновление БД..."
-```
+### Encoding Support
 
-### Работа с файлами
-```bash
-# Вывести текстовый файл
-WeActCLI /p:3 /file:status.txt
+For proper text display, especially with non-English characters:
 
-# Вывести лог с прокруткой
-WeActCLI /p:3 /file:app.log /s:20
-
-# Очистить экран
-WeActCLI /p:3 /CLS
-```
-
-### Отображение изображений
-```bash
-# Изображение на весь экран
-WeActCLI /p:3 /image:wallpaper.jpg
-
-# Оригинальный размер
-WeActCLI /p:3 /image:icon.png:1
-
-# Центрирование с заданным размером
-WeActCLI /p:3 /image:logo.png:2:64x64
-
-# Высокое качество
-WeActCLI /p:3 /image:photo.jpg /quality:high
-```
-
-### Перенаправление ввода
-```bash
-# Пайп из команды
-echo "Время: %time%" | WeActCLI /p:3
-
-# Перенаправление из файла
-WeActCLI /p:3 < data.txt
-
-# PowerShell
-Get-Process | Select-Object -First 5 Name,CPU | WeActCLI /p:3
-```
-
-## Режимы отображения изображений
-
-**Режим 0: Подгонка под экран** (по умолчанию)
-- Масштабирует изображение под размер дисплея с сохранением пропорций
-```bash
-WeActCLI /p:3 /image:photo.jpg
-```
-
-**Режим 1: Оригинальный размер**
-- Отображает в оригинальном разрешении из левого верхнего угла
-```bash
-WeActCLI /p:3 /image:icon.png:1
-```
-
-**Режим 2: Центрирование с заданным размером**
-- Центрирует изображение с указанными размерами
-```bash
-WeActCLI /p:3 /image:logo.png:2:100x50
-```
-
-## Настройки качества изображений
-
-| Уровень | Описание | Пример использования |
-|---------|----------|----------------------|
-| `fast` | Быстрый рендеринг, низкое качество | Простые иконки |
-| `normal` | Сбалансированное качество/скорость | По умолчанию |
-| `high` | Лучшее качество, медленнее | Фотографии |
-| `bwfast` | Быстрое черно-белое | Текстовые изображения |
-| `bwhigh` | Высококачественное черно-белое | Монохромные изображения |
-
-## Поддержка кодировок
-
-Для русского/кириллического текста:
-
-**PowerShell:**
+#### PowerShell:
 ```powershell
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+WeActCLI /p:3 "Русский текст"
 ```
 
-**CMD:**
+#### Command Prompt (CMD):
 ```cmd
 chcp 65001
+WeActCLI /p:3 "Русский текст"
 ```
 
-**Рекомендуется:**
+#### Text Files:
+Use UTF-8 encoded text files for best results.
+
+### Error Handling
+
+Common error messages and solutions:
+
+1. **"Error: Failed to initialize display on COMx"**:
+   - Check COM port number
+   - Verify display is connected and powered
+   - Ensure correct drivers are installed
+
+2. **"Error: File not found or empty"**:
+   - Verify file path is correct
+   - Check file permissions
+
+3. **"Error: No content specified"**:
+   - Provide text, file, or image parameter
+   - Or use `/CLS` to clear screen
+
+### Technical Details
+
+- **Text Rendering**: Uses Windows system fonts via GDI
+- **Image Processing**: Uses PureBasic's image library with optional scaling
+
+### License
+
+This project is provided as-is. Refer to the WeAct display library for specific licensing details.
+
+### Support
+
+For issues and questions:
+- Check the troubleshooting section above
+- Review the help (`WeActCLI /?`)
+- Contact hardware manufacturer for WeAct Display FS support
+
+---
+
+## Русский
+
+WeActCLI - мощная консольная утилита для отображения текста и изображений на дисплее WeAct Display FS через последовательный порт (COM-порт). Поддерживает несколько источников ввода, форматирование текста, прокрутку и режимы отображения изображений.
+
+### Возможности
+
+- **Несколько источников ввода**:
+  - Прямой ввод текста из командной строки
+  - Загрузка текста из файлов с поддержкой UTF-8
+  - Отображение файлов изображений (несколько форматов)
+  - Ввод через конвейер (pipe) из других программ
+  - Поддержка стандартного ввода (stdin)
+
+- **Параметры отображения текста**:
+  - Статическое отображение текста с переносом слов
+  - Плавная вертикальная прокрутка (вверх/вниз)
+  - Настраиваемый шрифт, размер и цвет
+  - Горизонтальное выравнивание по центру
+  - Точное позиционирование текста (координаты X/Y)
+  - Режим наложения (отображение без очистки экрана)
+
+- **Параметры отображения изображений**:
+  - Подгонка под экран (с сохранением пропорций)
+  - Отображение в исходном размере
+  - Отображение по центру с произвольным размером
+  - Несколько настроек качества изображения
+
+- **Расширенные возможности**:
+  - Автоматическая регулировка размера шрифта для длинных слов
+  - Управление межстрочным интервалом
+  - Опция очистки экрана
+  - Подробный режим для отладки
+  - Полноценная система помощи
+  - Поддержка кодировок Windows-консоли (UTF-8, Windows-1251, CP866)
+
+### Поддерживаемые форматы изображений
+Утилита поддерживает все форматы, предоставляемые базовой библиотекой дисплея WeAct, обычно включая:
+- JPEG/JPG
+- PNG
+- BMP
+- GIF
+
+### Установка
+
+1. **Предварительные требования**:
+   - Операционная система Windows
+   - Оборудование WeAct Display FS
+   - Установленные драйверы USB-to-serial (при необходимости)
+   - Компилятор PureBasic (для сборки из исходного кода)
+
+2. **Установка бинарного файла**:
+   Скачайте предварительно скомпилированный `WeActCLI.exe` со страницы релизов.
+
+3. **Сборка из исходного кода**:
+   ```bash
+   # Требуется PureBasic 6.30 или новее
+   pbcompiler WeActCLI.pb /CONSOLE /EXE WeActCLI.exe
+   ```
+
+### Синтаксис командной строки
+
 ```bash
-WeActCLI /p:3 /file:utf8_text.txt
+WeActCLI /p:X [/v][/c:YYY] [/f:"Имя шрифта":Размер] [/s:Скорость[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:"путь\имя.txt"] [/image:"путь\изображение.jpg"[:режим[:ШxВ]]] ["текст"]
 ```
 
-## Поддерживаемые форматы изображений
+### Параметры
 
-Форматы, поддерживаемые функцией `LoadImage()` в PureBasic:
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- BMP (.bmp)
-- TIFF (.tif, .tiff)
+| Параметр | Описание | Пример |
+|-----------|-------------|---------|
+| `/p:X` | **Обязательный** Номер COM-порта | `/p:3` для COM3 |
+| `/c:YYY` | Цвет текста | `/c:red`, `/c:blue`, `/c:white` |
+| `/f:"Шрифт":Размер` | Имя шрифта и размер | `/f:Arial:10`, `/f:"Times New Roman":12` |
+| `/s:Скорость[:u\|d]` | Скорость и направление прокрутки | `/s:25.5`, `/s:40:d` |
+| `/center` | Выравнивание текста по центру | |
+| `/x:X` | Координата X для текста (режим наложения) | `/x:10` |
+| `/y:Y` | Координата Y для текста (режим наложения) | `/y:20` |
+| `/CLS` | Только очистка экрана | |
+| `/file:"путь"` | Загрузка текста из файла | `/file:log.txt` |
+| `/image:"путь"[:режим[:ШxВ]]` | Отображение изображения | `/image:photo.jpg:0`, `/image:logo.png:2:64x64` |
+| `/v` | Подробный режим | |
+| `текст` | Текст для отображения (используйте кавычки для пробелов) | `"Привет Мир"` |
 
-## Обработка ошибок
+### Доступные цвета
+- `red` (красный), `green` (зеленый), `blue` (синий), `white` (белый), `black` (черный), `yellow` (желтый), `cyan` (голубой), `magenta` (пурпурный)
 
-Частые проблемы:
+### Режимы изображений
+- `0` - Подгонка под экран (по умолчанию)
+- `1` - Оригинальный размер в позиции (0,0)
+- `2` - По центру с произвольным размером
 
-1. **"Не удалось инициализировать дисплей"**
-   - Проверьте номер COM-порта в Диспетчере устройств
-   - Проверьте USB-подключение
-   - Убедитесь, что драйверы установлены
+### Примеры использования
 
-2. **"Файл не найден"**
-   - Используйте полные пути
-   - Заключайте пути с пробелами в кавычки
+1. **Отображение простого текста**:
+   ```bash
+   WeActCLI /p:3 "Привет Мир"
+   ```
 
-3. **Проблемы с кодировкой текста**
-   - Используйте файлы в кодировке UTF-8
-   - Установите кодировку консоли в UTF-8
+2. **Отображение текста с произвольным шрифтом и цветом**:
+   ```bash
+   WeActCLI /p:3 /c:red /f:Arial:12 "Внимание: Системная тревога"
+   ```
 
-## Коды возврата
+3. **Отображение прокручиваемого текста**:
+   ```bash
+   WeActCLI /p:3 /s:25.5 "Этот текст будет прокручиваться вверх"
+   ```
 
-| Код | Значение |
-|-----|----------|
-| 0 | Успех |
-| 1 | Ошибка |
+4. **Отображение текста из файла**:
+   ```bash
+   WeActCLI /p:3 /file:log.txt
+   ```
 
-## Сборка из исходного кода
+5. **Отображение изображения**:
+   ```bash
+   WeActCLI /p:3 /image:photo.jpg
+   ```
 
-Требуется PureBasic 6.21+:
+6. **Отображение изображения по центру с произвольным размером**:
+   ```bash
+   WeActCLI /p:3 /image:logo.png:2:128x64
+   ```
 
-```bash
-pbcompiler WeActCLI.pb /CONSOLE /EXE "WeActCLI.exe"
+7. **Передача текста из другой программы**:
+   ```bash
+   echo "Текущее время: %time%" | WeActCLI /p:3
+   ```
+
+8. **Только очистка экрана**:
+   ```bash
+   WeActCLI /p:3 /CLS
+   ```
+
+9. **Отображение текста в определенной позиции (наложение)**:
+   ```bash
+   WeActCLI /p:3 /x:50 /y:100 "Статус: OK"
+   ```
+
+10. **Многострочный текст с разрывами строк**:
+    ```bash
+    WeActCLI /p:3 "Строка 1\nСтрока 2\nСтрока 3"
+    ```
+
+### Поддержка кодировок
+
+Для правильного отображения текста, особенно с неанглийскими символами:
+
+#### PowerShell:
+```powershell
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+WeActCLI /p:3 "Русский текст"
 ```
+
+#### Командная строка (CMD):
+```cmd
+chcp 65001
+WeActCLI /p:3 "Русский текст"
+```
+
+#### Текстовые файлы:
+Используйте текстовые файлы в кодировке UTF-8 для лучших результатов.
+
+### Обработка ошибок
+
+Частые сообщения об ошибках и их решения:
+
+1. **"Error: Failed to initialize display on COMx"**:
+   - Проверьте номер COM-порта
+   - Убедитесь, что дисплей подключен и включен
+   - Убедитесь, что установлены правильные драйверы
+
+2. **"Error: File not found or empty"**:
+   - Проверьте правильность пути к файлу
+   - Проверьте права доступа к файлу
+
+3. **"Error: No content specified"**:
+   - Укажите текст, файл или параметр изображения
+   - Или используйте `/CLS` для очистки экрана
+
+### Технические детали
+
+- **Отрисовка текста**: Использует системные шрифты Windows через GDI
+- **Обработка изображений**: Использует библиотеку изображений PureBasic с опциональным масштабированием
+
+### Лицензия
+
+Проект предоставляется "как есть". Обратитесь к библиотеке дисплея WeAct для получения информации о лицензировании.
+
+### Поддержка
+
+При возникновении проблем и вопросов:
+- Проверьте раздел устранения неполадок выше
+- Ознакомьтесь со справкой (`WeActCLI /?`)
+- Обратитесь к производителю оборудования для получения поддержки WeAct Display FS
