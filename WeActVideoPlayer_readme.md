@@ -160,22 +160,6 @@ Any format supported by FFmpeg:
 3. **File Location**: Use local drives (not network shares)
 4. **Background Processes**: Close unnecessary applications during playback
 
-## 🔄 Advanced Usage
-
-### Batch Processing with Script
-Create a batch file `playlist.bat`:
-```batch
-@echo off
-WeActVideoPlayer.exe /p:3 /loop video1.mp4
-WeActVideoPlayer.exe /p:3 /loop /f:12 video2.mp4
-WeActVideoPlayer.exe /p:3 /w video3.avi
-```
-
-### Integration with Other Software
-- Use with OBS Studio for live video streaming
-- Integrate into digital signage systems
-- Combine with sensors for interactive displays
-
 ## 📁 Project Structure
 
 ```
@@ -187,30 +171,9 @@ WeActVideoPlayer/
 └── Examples/            # Sample videos and scripts
 ```
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes with clear comments
-4. Test thoroughly
-5. Submit a pull request
-
 ## 📄 License
 
 MIT License - see LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- WeAct Studio for display hardware
-- FFmpeg team for video processing
-- PureBasic community
-
-## 📞 Support
-
-For issues and questions:
-1. Check Troubleshooting section
-2. Create GitHub Issue
-3. Contact hardware manufacturer for display issues
 
 ---
 
@@ -370,22 +333,6 @@ WeActVideoPlayer.exe /p:2 /h демо.mp4
 3. **Расположение файлов**: Используйте локальные диски (не сетевые)
 4. **Фоновые процессы**: Закройте ненужные приложения во время воспроизведения
 
-## 🔄 Продвинутое использование
-
-### Пакетная обработка скриптом
-Создайте batch-файл `playlist.bat`:
-```batch
-@echo off
-WeActVideoPlayer.exe /p:3 /loop видео1.mp4
-WeActVideoPlayer.exe /p:3 /loop /f:12 видео2.mp4
-WeActVideoPlayer.exe /p:3 /w видео3.avi
-```
-
-### Интеграция с другим ПО
-- Используйте с OBS Studio для прямой трансляции
-- Интегрируйте в системы цифровых вывесок
-- Комбинируйте с датчиками для интерактивных дисплеев
-
 ## 📁 Структура проекта
 
 ```
@@ -397,27 +344,7 @@ WeActVideoPlayer/
 └── Examples/            # Примеры видео и скриптов
 ```
 
-## 🤝 Участие в разработке
-
-1. Сделайте форк репозитория
-2. Создайте ветку для новой функции
-3. Вносите изменения с понятными комментариями
-4. Тщательно тестируйте
-5. Отправьте pull request
-
 ## 📄 Лицензия
 
 MIT License - подробности в файле LICENSE
 
-## 🙏 Благодарности
-
-- WeAct Studio за оборудование дисплеев
-- Команде FFmpeg за обработку видео
-- Сообществу PureBasic
-
-## 📞 Поддержка
-
-Для проблем и вопросов:
-1. Проверьте раздел "Устранение неполадок"
-2. Создайте Issue на GitHub
-3. Обратитесь к производителю оборудования по вопросам дисплеев
