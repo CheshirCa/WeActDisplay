@@ -82,7 +82,7 @@ WeActVideoPlayer.exe /p:<port> [/model:096|350] [/orientation:portrait|landscape
 | `/w` | Optional. Scale to fit width | `/w` |
 | `/h` | Optional. Scale to fit height | `/h` |
 | `/f:<fps>` | Optional. Playback frames per second (default: 10) | `/f:15` |
-| `/t:<seconds>` | Video duration to extract: 1…600 seconds; default: 10 | `/t:10` |
+| `/t:<seconds>` | Optional extraction limit: 1…600 seconds; without it, the full video is played | `/t:10` |
 | `/fastlz` | FastLZ transport; model 350 only | `/model:350 /fastlz` |
 | `/changed` | Send only changed frame area | `/changed` |
 | `/v` | Optional. Verbose mode (shows progress) | `/v` |
@@ -297,7 +297,7 @@ WeActVideoPlayer.exe /p:<порт> [/model:096|350] [/orientation:portrait|lands
 | `/w` | Опционально. Масштабирование по ширине | `/w` |
 | `/h` | Опционально. Масштабирование по высоте | `/h` |
 | `/f:<кадры/сек>` | Опционально. Кадров в секунду (по умолчанию: 10) | `/f:15` |
-| `/t:<секунды>` | Длительность извлечения: 1…600 секунд; по умолчанию 10 | `/t:10` |
+| `/t:<секунды>` | Необязательное ограничение: 1…600 секунд; без него воспроизводится весь ролик | `/t:10` |
 | `/fastlz` | Сжатая передача FastLZ; только модель 350 | `/model:350 /fastlz` |
 | `/changed` | Передавать только область изменений кадра | `/changed` |
 | `/v` | Опционально. Подробный вывод (прогресс) | `/v` |

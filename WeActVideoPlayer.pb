@@ -11,7 +11,7 @@ Global Model.i = #WEACT_MODEL_096
 Global Orientation.i = #WEACT_LANDSCAPE
 Global VideoFile.s
 Global FrameRate.f = 10.0
-Global DurationSeconds.f = 10.0
+Global DurationSeconds.f = 0.0 ; 0 = full video; /t explicitly limits extraction
 Global LoopPlayback.i = #False
 Global ScaleMode.i = 0 ; 0 fit, 1 width, 2 height
 Global FastLZMode.i = #False
@@ -21,8 +21,9 @@ Global FrameCount.i
 
 Procedure ShowHelp()
   PrintN("WeAct Video Player")
-  PrintN("Usage: WeActVideoPlayer /p:21 [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/f:10] [/t:10] [/loop] [/w|/h] [/fastlz] [/changed] file.mp4")
+  PrintN("Usage: WeActVideoPlayer /p:21 [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/f:10] [/t:seconds] [/loop] [/w|/h] [/fastlz] [/changed] file.mp4")
   PrintN("ffmpeg must be available on PATH.")
+  PrintN("Without /t the full video is played. /t:seconds limits extraction to 1..600 seconds.")
   PrintN("/fastlz is available only for model 350. /changed updates only the changed area.")
 EndProcedure
 
@@ -98,7 +99,11 @@ Procedure.i ExtractFrames()
   Protected width.i = WeAct_GetDisplayWidth(), height.i = WeAct_GetDisplayHeight()
   Protected command.s, process.i, directory.i
   If Not CreateFrameDirectory() : ProcedureReturn #False : EndIf
-  command = "-i " + Chr(34) + VideoFile + Chr(34) + " -t " + StrF(DurationSeconds, 2) + " -vf " + Chr(34) + "scale=" + Str(width) + ":" + Str(height) + ":force_original_aspect_ratio=decrease" + Chr(34) + " -r " + StrF(FrameRate, 2) + " " + Chr(34) + TempDirectory + "frame_%05d.jpg" + Chr(34)
+  command = "-i " + Chr(34) + VideoFile + Chr(34)
+  If DurationSeconds > 0.0
+    command = command + " -t " + StrF(DurationSeconds, 2)
+  EndIf
+  command = command + " -vf " + Chr(34) + "scale=" + Str(width) + ":" + Str(height) + ":force_original_aspect_ratio=decrease" + Chr(34) + " -r " + StrF(FrameRate, 2) + " " + Chr(34) + TempDirectory + "frame_%05d.jpg" + Chr(34)
   process = RunProgram("ffmpeg", command, "", #PB_Program_Open | #PB_Program_Wait | #PB_Program_Hide)
   If Not process : ProcedureReturn #False : EndIf
   CloseProgram(process)
