@@ -2,6 +2,8 @@
 
 ![WeAct Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
 
+![WeAct Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/WeactFS3.5.jpg)
+
 Библиотека для работы с дисплеями WeAct Display FS 0.96-inch и 3.5-inch через последовательный порт.  
 Library for working with WeAct Display FS 0.96-inch and 3.5-inch displays via serial port.
 
