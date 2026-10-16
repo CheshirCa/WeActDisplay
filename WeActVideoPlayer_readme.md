@@ -67,7 +67,7 @@ WeActVideoPlayer.exe /p:3 video.mp4
 
 ### Full Syntax
 ```cmd
-WeActVideoPlayer.exe /p:<port> <video_file> [/loop] [/w|/h] [/f:<fps>] [/v]
+WeActVideoPlayer.exe /p:<port> [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/f:<fps>] [/t:<seconds>] [/loop] [/w|/h] [/fastlz] [/changed] <video_file>
 ```
 
 ### Parameters
@@ -75,11 +75,16 @@ WeActVideoPlayer.exe /p:<port> <video_file> [/loop] [/w|/h] [/f:<fps>] [/v]
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `/p:<port>` | **Required.** COM port number | `/p:3` for COM3 |
+| `/model:096\|350` | Display model; default: 096 | `/model:350` |
+| `/orientation:...` | Fixed display orientation | `/orientation:landscape` |
 | `<video_file>` | **Required.** Path to video file | `C:\videos\demo.mp4` |
 | `/loop` | Optional. Loop video continuously | `/loop` |
 | `/w` | Optional. Scale to fit width | `/w` |
 | `/h` | Optional. Scale to fit height | `/h` |
 | `/f:<fps>` | Optional. Playback frames per second (default: 10) | `/f:15` |
+| `/t:<seconds>` | Video duration to extract: 1…600 seconds; default: 10 | `/t:10` |
+| `/fastlz` | FastLZ transport; model 350 only | `/model:350 /fastlz` |
+| `/changed` | Send only changed frame area | `/changed` |
 | `/v` | Optional. Verbose mode (shows progress) | `/v` |
 
 ### Scaling Modes
@@ -160,6 +165,22 @@ Any format supported by FFmpeg:
 3. **File Location**: Use local drives (not network shares)
 4. **Background Processes**: Close unnecessary applications during playback
 
+## 🔄 Advanced Usage
+
+### Batch Processing with Script
+Create a batch file `playlist.bat`:
+```batch
+@echo off
+WeActVideoPlayer.exe /p:3 /loop video1.mp4
+WeActVideoPlayer.exe /p:3 /loop /f:12 video2.mp4
+WeActVideoPlayer.exe /p:3 /w video3.avi
+```
+
+### Integration with Other Software
+- Use with OBS Studio for live video streaming
+- Integrate into digital signage systems
+- Combine with sensors for interactive displays
+
 ## 📁 Project Structure
 
 ```
@@ -171,9 +192,30 @@ WeActVideoPlayer/
 └── Examples/            # Sample videos and scripts
 ```
 
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with clear comments
+4. Test thoroughly
+5. Submit a pull request
+
 ## 📄 License
 
 MIT License - see LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- WeAct Studio for display hardware
+- FFmpeg team for video processing
+- PureBasic community
+
+## 📞 Support
+
+For issues and questions:
+1. Check Troubleshooting section
+2. Create GitHub Issue
+3. Contact hardware manufacturer for display issues
 
 ---
 
@@ -240,7 +282,7 @@ WeActVideoPlayer.exe /p:3 video.mp4
 
 ### Полный синтаксис
 ```cmd
-WeActVideoPlayer.exe /p:<порт> <видеофайл> [/loop] [/w|/h] [/f:<кадры/сек>] [/v]
+WeActVideoPlayer.exe /p:<порт> [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/f:<кадры/сек>] [/t:<секунды>] [/loop] [/w|/h] [/fastlz] [/changed] <видеофайл>
 ```
 
 ### Параметры
@@ -248,11 +290,16 @@ WeActVideoPlayer.exe /p:<порт> <видеофайл> [/loop] [/w|/h] [/f:<к�
 | Параметр | Описание | Пример |
 |----------|----------|---------|
 | `/p:<порт>` | **Обязательный.** Номер COM-порта | `/p:3` для COM3 |
+| `/model:096\|350` | Модель дисплея; по умолчанию 096 | `/model:350` |
+| `/orientation:...` | Фиксированная ориентация | `/orientation:landscape` |
 | `<видеофайл>` | **Обязательный.** Путь к видеофайлу | `C:\видео\демо.mp4` |
 | `/loop` | Опционально. Циклическое воспроизведение | `/loop` |
 | `/w` | Опционально. Масштабирование по ширине | `/w` |
 | `/h` | Опционально. Масштабирование по высоте | `/h` |
 | `/f:<кадры/сек>` | Опционально. Кадров в секунду (по умолчанию: 10) | `/f:15` |
+| `/t:<секунды>` | Длительность извлечения: 1…600 секунд; по умолчанию 10 | `/t:10` |
+| `/fastlz` | Сжатая передача FastLZ; только модель 350 | `/model:350 /fastlz` |
+| `/changed` | Передавать только область изменений кадра | `/changed` |
 | `/v` | Опционально. Подробный вывод (прогресс) | `/v` |
 
 ### Режимы масштабирования
@@ -333,6 +380,22 @@ WeActVideoPlayer.exe /p:2 /h демо.mp4
 3. **Расположение файлов**: Используйте локальные диски (не сетевые)
 4. **Фоновые процессы**: Закройте ненужные приложения во время воспроизведения
 
+## 🔄 Продвинутое использование
+
+### Пакетная обработка скриптом
+Создайте batch-файл `playlist.bat`:
+```batch
+@echo off
+WeActVideoPlayer.exe /p:3 /loop видео1.mp4
+WeActVideoPlayer.exe /p:3 /loop /f:12 видео2.mp4
+WeActVideoPlayer.exe /p:3 /w видео3.avi
+```
+
+### Интеграция с другим ПО
+- Используйте с OBS Studio для прямой трансляции
+- Интегрируйте в системы цифровых вывесок
+- Комбинируйте с датчиками для интерактивных дисплеев
+
 ## 📁 Структура проекта
 
 ```
@@ -344,7 +407,27 @@ WeActVideoPlayer/
 └── Examples/            # Примеры видео и скриптов
 ```
 
+## 🤝 Участие в разработке
+
+1. Сделайте форк репозитория
+2. Создайте ветку для новой функции
+3. Вносите изменения с понятными комментариями
+4. Тщательно тестируйте
+5. Отправьте pull request
+
 ## 📄 Лицензия
 
 MIT License - подробности в файле LICENSE
 
+## 🙏 Благодарности
+
+- WeAct Studio за оборудование дисплеев
+- Команде FFmpeg за обработку видео
+- Сообществу PureBasic
+
+## 📞 Поддержка
+
+Для проблем и вопросов:
+1. Проверьте раздел "Устранение неполадок"
+2. Создайте Issue на GitHub
+3. Обратитесь к производителю оборудования по вопросам дисплеев

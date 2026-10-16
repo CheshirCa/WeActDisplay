@@ -1,9 +1,14 @@
+﻿; Copyright (C) CheshirCa 2026   https://t.me/cheshircanest
+; Modified 2026-10-14 for two display models; GPL-3.0, see LICENSE.
 ; WeActCLI - Console Text and Image Display Utility for WeAct Display FS
 ; Main program file for displaying text and images on WeAct Display via serial port
 
 XIncludeFile "WeActDisplay.pbi"
 
 OpenConsole()
+; PrintN() has no PureBasic option to select the Windows console output codepage.
+; Select UTF-8 so the bilingual help remains readable in CMD and PowerShell.
+SetConsoleOutputCP_(65001)
 
 ; =============================================
 ; GLOBAL VARIABLES
@@ -14,8 +19,14 @@ Global verbose.i = #False
 
 ; Serial port for display connection (default: COM3)
 Global comPort.s = "COM3"
+Global displayModel.i = #WEACT_MODEL_096
+Global displayOrientation.i = -1
+Global displayBrightness.i = -1
+Global helpRequested.i = #False
+Global sensorMode.i = #False
+Global fastLZMode.i = #False
 
-; Text color in BRG565 format (default: white)
+; Text color in RGB565 format (default: white)
 Global textColor.i = #WEACT_WHITE
 
 ; Text to display (from command line, file, or stdin)
@@ -316,12 +327,20 @@ Procedure ShowHelp()
   PrintN("  5. File redirection:  WeActCLI /p:3 < log.txt")
   PrintN("  6. Clear screen:      WeActCLI /p:3 /CLS")
   PrintN("  7. Multi-line text:   WeActCLI /p:3 "+ Chr(34) + "Line 1\\nLine 2\\nLine 3" + Chr(34))
+  PrintN("  8. Read sensors:      WeActCLI /p:10 /model:350 /sensor")
+  PrintN("  9. Fast image output: WeActCLI /p:10 /model:350 /fastlz " + Chr(34) + "Привет" + Chr(34))
   PrintN("")
-  PrintN("SYNTAX: WeActCLI /p:X [/v][/c:YYY] [/f:" + Chr(34) + "Font Name" + Chr(34) + ":Size] [/s:Speed[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:" + Chr(34) + "path\name.txt" + Chr(34) + "] [/image:" + Chr(34) + "path\image.jpg" + Chr(34) + "[:mode[:WxH]]] [" + Chr(34) + "text" + Chr(34) + "]")
+  PrintN("SYNTAX: WeActCLI /p:X [/model:096|350] [/sensor] [/fastlz] [/v][/c:YYY] [/f:" + Chr(34) + "Font Name" + Chr(34) + ":Size] [/s:Speed[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:" + Chr(34) + "path\name.txt" + Chr(34) + "] [/image:" + Chr(34) + "path\image.jpg" + Chr(34) + "[:mode[:WxH]]] [" + Chr(34) + "text" + Chr(34) + "]")
   PrintN("")
   PrintN("PARAMETERS:")
   PrintN("  /p:X       - COM port number (REQUIRED)")
   PrintN("               Example: /p:3 for COM3")
+  PrintN("  /model:096|350 - Display model / Модель дисплея (default / по умолчанию: 096)")
+  PrintN("  /orientation:portrait|landscape|reverse-portrait|reverse-landscape")
+  PrintN("               Orientation / Ориентация экрана")
+  PrintN("  /brightness:0..255 - Brightness / Яркость")
+  PrintN("  /sensor    - Print temperature and humidity, one bracketed value per line")
+  PrintN("  /fastlz    - Use FastLZ image compression (3.5-inch model only)")
   PrintN("")
   PrintN("  /c:YYY     - Text color (optional, default: white)")
   PrintN("               Available colors: red, green, blue, white, black,")
@@ -377,6 +396,18 @@ Procedure ShowHelp()
   PrintN("IMAGE FORMATS:")
   PrintN("  Supported: " + WeAct_GetSupportedImageFormats())
   PrintN("")
+  PrintN("СПРАВКА НА РУССКОМ:")
+  PrintN("  WeActCLI /p:10 /model:350 /orientation:landscape /brightness:255 " + Chr(34) + "Привет" + Chr(34))
+  PrintN("  /p:N            Номер COM-порта; /model:096|350 — модель дисплея")
+  PrintN("  /orientation:portrait|landscape|reverse-portrait|reverse-landscape — ориентация")
+  PrintN("  /brightness:0..255 — яркость; /CLS — очистка экрана")
+  PrintN("  /sensor         Температура и влажность, по одному значению в квадратных скобках")
+  PrintN("  /fastlz         Сжатая передача FastLZ; только для модели 3.5 дюйма")
+  PrintN("  /c:цвет        Цвет: red, green, blue, white, black, yellow, cyan, magenta")
+  PrintN("  /f:шрифт:размер — шрифт и размер; /s:скорость[:u|d] — прокрутка")
+  PrintN("  /center        Центрирование; /x:N /y:N — координаты и наложение")
+  PrintN("  /file:путь     Текстовый файл; /image:путь[:режим[:ШxВ]] — изображение")
+  PrintN("  /v            Подробный вывод; /? — эта справка")
 EndProcedure
 
 ; =============================================
@@ -388,10 +419,21 @@ EndProcedure
 ; Returns: #True if successful, #False if failed
 Procedure ClearDisplayOnly()
   ; Initialize display connection
-  If WeAct_Init(comPort)
+  If WeAct_Init(comPort, displayModel)
+    If displayOrientation >= 0 And Not WeAct_SetOrientation(displayOrientation)
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
+    If displayBrightness >= 0 And Not WeAct_SetBrightness(displayBrightness)
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
     ; Clear to black and update
     WeAct_ClearBuffer(#WEACT_BLACK)
-    WeAct_UpdateDisplay()
+    If Not WeAct_UpdateDisplay()
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
     
     Delay(100)                   ; Wait for display update
     WeAct_Cleanup()              ; Close connection
@@ -542,6 +584,7 @@ Procedure ParseCommandLine()
     Protected stdinTest.s = ReadFromStdin()       ; Check stdin
     If stdinTest = ""
       ShowHelp()            ; No input, show help
+      helpRequested = #True
       ProcedureReturn #False
     Else
       ; Use stdin data as display text
@@ -568,24 +611,56 @@ Procedure ParseCommandLine()
           
         Case "/cls", "-cls"
           clearScreenOnly = #True
+
+        Case "/sensor", "-sensor"
+          sensorMode = #True
+
+        Case "/fastlz", "-fastlz"
+          fastLZMode = #True
           
         Case "/v", "-v"
           verbose = #True
           
         Case "/?", "-?", "/h", "-h"
           ShowHelp()
+          helpRequested = #True
           ProcedureReturn #False
           
         Default:
           ; COM port: /p:X or -p:X
-          If Left(param, 3) = "/p:" Or Left(param, 3) = "-p:"
+          If Left(LCase(param), 7) = "/model:" Or Left(LCase(param), 7) = "-model:"
+            Select LCase(Mid(param, 8))
+              Case "096", "0.96", "small": displayModel = #WEACT_MODEL_096
+              Case "350", "3.5", "large": displayModel = #WEACT_MODEL_350
+              Default
+                PrintN("Error: model must be 096 or 350 / Модель: 096 или 350")
+                ProcedureReturn #False
+            EndSelect
+          ElseIf Left(LCase(param), 13) = "/orientation:" Or Left(LCase(param), 13) = "-orientation:"
+            Select LCase(Mid(param, 14))
+              Case "portrait", "p": displayOrientation = #WEACT_PORTRAIT
+              Case "reverse-portrait", "rp": displayOrientation = #WEACT_REVERSE_PORTRAIT
+              Case "landscape", "l": displayOrientation = #WEACT_LANDSCAPE
+              Case "reverse-landscape", "rl": displayOrientation = #WEACT_REVERSE_LANDSCAPE
+              Default
+                PrintN("Error: invalid orientation / Неверная ориентация")
+                ProcedureReturn #False
+            EndSelect
+          ElseIf Left(LCase(param), 12) = "/brightness:" Or Left(LCase(param), 12) = "-brightness:"
+            Protected brightnessText.s = Mid(param, 13)
+            displayBrightness = Val(brightnessText)
+            If brightnessText = "" Or Str(displayBrightness) <> brightnessText Or displayBrightness < 0 Or displayBrightness > 255
+              PrintN("Error: brightness must be 0..255 / Яркость: 0..255")
+              ProcedureReturn #False
+            EndIf
+          ElseIf Left(param, 3) = "/p:" Or Left(param, 3) = "-p:"
             comPort = "COM" + Mid(param, 4)  ; Extract port number
             
           ; Color: /c:YYY or -c:YYY
           ElseIf Left(param, 3) = "/c:" Or Left(param, 3) = "-c:"
             Protected colorName.s = LCase(Mid(param, 4))  ; Color name
             
-            ; Map names to BRG565 color constants
+            ; Map names to RGB565 color constants
             Select colorName
               Case "red":     textColor = #WEACT_RED
               Case "green":   textColor = #WEACT_GREEN
@@ -814,6 +889,22 @@ Procedure ParseCommandLine()
   If textFile <> "" : contentSources + 1 : EndIf
   If imageFile <> "" : contentSources + 1 : EndIf
   If displayText <> "" : contentSources + 1 : EndIf
+
+  If sensorMode
+    If displayModel <> #WEACT_MODEL_350
+      PrintN("[error=/sensor requires /model:350]")
+      ProcedureReturn #False
+    EndIf
+    If contentSources > 0 Or clearScreenOnly
+      PrintN("[error=/sensor cannot be combined with text, file, image, or /CLS]")
+      ProcedureReturn #False
+    EndIf
+    ProcedureReturn #True
+  EndIf
+  If fastLZMode And displayModel <> #WEACT_MODEL_350
+    PrintN("[error=/fastlz requires /model:350]")
+    ProcedureReturn #False
+  EndIf
   
   ; 3. Process sources in priority order
   If imageFile <> ""
@@ -853,6 +944,42 @@ Procedure ParseCommandLine()
   EndIf
   
   ProcedureReturn #True  ; Parsing successful
+EndProcedure
+
+; Reads one report from the 3.5-inch temperature and humidity sensors.
+; Successful output intentionally contains only two machine-readable lines.
+Procedure.i OutputSensorValues()
+  Protected started.q = ElapsedMilliseconds()
+  Protected temperature.f, humidity.f
+  Protected received.i = #False
+
+  If Not WeAct_SetSensorPeriod(500)
+    PrintN("[error=" + WeAct_GetLastError() + "]")
+    ProcedureReturn #False
+  EndIf
+
+  Repeat
+    If WeAct_PollSensor()
+      received = #True
+      Break
+    EndIf
+    Delay(20)
+  Until ElapsedMilliseconds() - started >= 3000
+
+  If Not received Or Not WeAct_GetSensorValues(@temperature, @humidity, 5000)
+    WeAct_SetSensorPeriod(0)
+    PrintN("[error=no sensor response]")
+    ProcedureReturn #False
+  EndIf
+
+  If Not WeAct_SetSensorPeriod(0)
+    PrintN("[error=" + WeAct_GetLastError() + "]")
+    ProcedureReturn #False
+  EndIf
+
+  PrintN("temperature [" + StrF(temperature, 2) + "]")
+  PrintN("humidity [" + StrF(humidity, 2) + "]")
+  ProcedureReturn #True
 EndProcedure
 
 ; =============================================
@@ -1001,7 +1128,7 @@ EndProcedure
 
 ; Displays text with smooth vertical scrolling
 ; Text: Text to scroll
-; Color: Text color in BRG565
+; Color: Text color in RGB565
 ; FontName: Font name
 ; FontSize: Font size in points
 ; Speed: Scroll speed in px/s
@@ -1111,7 +1238,9 @@ Procedure DisplayTextWithScrolling(Text.s, Color.i, FontName.s, FontSize.i, Spee
     Next
     
     ; Update display
-    WeAct_UpdateDisplay()
+    If Not WeAct_UpdateDisplay()
+      ProcedureReturn #False
+    EndIf
     
     ; Check if scrolling should stop
     If Direction = #SCROLL_UP
@@ -1141,7 +1270,9 @@ Procedure DisplayTextWithScrolling(Text.s, Color.i, FontName.s, FontSize.i, Spee
   
   ; Clear screen after scrolling
   WeAct_ClearBuffer(#WEACT_BLACK)
-  WeAct_UpdateDisplay()
+  If Not WeAct_UpdateDisplay()
+    ProcedureReturn #False
+  EndIf
   
   noVisibleCounter = 0  ; Reset static counter
   
@@ -1152,7 +1283,7 @@ EndProcedure
 
 ; Displays static (non-scrolling) text
 ; Text: Text to display
-; Color: Text color in BRG565
+; Color: Text color in RGB565
 ; FontName: Font name
 ; FontSize: Font size in points
 ; Returns: #True if successful, #False if failed
@@ -1217,9 +1348,7 @@ Procedure DisplayStaticText(Text.s, Color.i, FontName.s, FontSize.i)
   Next
   
   ; Update display
-  WeAct_UpdateDisplay()
-  
-  ProcedureReturn #True
+  ProcedureReturn WeAct_UpdateDisplay()
 EndProcedure
 
 ; =============================================
@@ -1231,29 +1360,60 @@ Procedure DisplayContent()
   ; Initialize display connection
   Protected initResult.i
   
-  If clearScreen = #False
+  If clearScreen = #False Or sensorMode
     ; Overlay mode - don't clear screen on init
-    initResult = WeAct_InitNoClear(comPort)
+    initResult = WeAct_InitNoClear(comPort, displayModel)
   Else
     ; Normal mode - standard init
-    initResult = WeAct_Init(comPort)
+    initResult = WeAct_Init(comPort, displayModel)
   EndIf
   
   If initResult
+    If sensorMode
+      Protected sensorResult.i = OutputSensorValues()
+      WeAct_Cleanup()
+      ProcedureReturn sensorResult
+    EndIf
+    If fastLZMode And Not WeAct_SetFastLZEnabled(#True)
+      PrintN("Error: " + WeAct_GetLastError())
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
+    If displayOrientation >= 0 And Not WeAct_SetOrientation(displayOrientation)
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
+    If displayBrightness >= 0 And Not WeAct_SetBrightness(displayBrightness)
+      WeAct_Cleanup()
+      ProcedureReturn #False
+    EndIf
+    wrapWidth = WeAct_GetDisplayWidth() - 10
     If clearScreenOnly
       ; Clear screen only
       WeAct_ClearBuffer(#WEACT_BLACK)
-      WeAct_UpdateDisplay()
+      If Not WeAct_UpdateDisplay()
+        WeAct_Cleanup()
+        ProcedureReturn #False
+      EndIf
       Delay(100)
     ElseIf imageFile <> ""
       ; Image display
-      DisplayImageFromFile(imageFile, imageMode, imageWidth, imageHeight)
+      If Not DisplayImageFromFile(imageFile, imageMode, imageWidth, imageHeight)
+        WeAct_Cleanup()
+        ProcedureReturn #False
+      EndIf
     ElseIf scrollMode
       ; Scrolling text
-      DisplayTextWithScrolling(displayText, textColor, fontName, fontSize, scrollSpeed, scrollDirection)
+      If Not DisplayTextWithScrolling(displayText, textColor, fontName, fontSize, scrollSpeed, scrollDirection)
+        WeAct_Cleanup()
+        ProcedureReturn #False
+      EndIf
     Else
       ; Static text
-      DisplayStaticText(displayText, textColor, fontName, fontSize)
+      If Not DisplayStaticText(displayText, textColor, fontName, fontSize)
+        WeAct_Cleanup()
+        ProcedureReturn #False
+      EndIf
     EndIf
     
     ; Clean up
@@ -1263,6 +1423,10 @@ Procedure DisplayContent()
     
   Else
     ; Initialization failed
+    If sensorMode
+      PrintN("[error=" + WeAct_GetLastError() + "]")
+      ProcedureReturn #False
+    EndIf
     PrintN("Error: Failed to initialize display on " + comPort)
     PrintN("Error details: " + WeAct_GetLastError())
     PrintN("Please check:")
@@ -1287,20 +1451,22 @@ CompilerEndIf
 If ParseCommandLine()
   If clearScreenOnly And displayText = "" And imageFile = ""
     ; Only clear screen
-    ClearDisplayOnly()
+    If Not ClearDisplayOnly() : End 1 : EndIf
   Else
     ; Display content
-    DisplayContent()
+    If Not DisplayContent() : End 1 : EndIf
   EndIf
   
   End 0  ; Success exit
 Else
+  If helpRequested : End 0 : EndIf
   End 1  ; Error exit
 EndIf
-; IDE Options = PureBasic 6.30 (Windows - x86)
+; IDE Options = PureBasic 6.41 (Windows - x64)
 ; ExecutableFormat = Console
 ; CursorPosition = 1298
 ; FirstLine = 1225
 ; Folding = ----
 ; EnableXP
 ; Executable = WeactCLI.exe
+

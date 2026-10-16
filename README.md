@@ -1,9 +1,9 @@
-# WeAct Display FS Library for PureBasic v5.0
+# WeAct Display FS Library for PureBasic v6.0
 
-![WeAct 0.96" Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
+![WeAct Display](https://raw.githubusercontent.com/CheshirCa/WeActDisplay/refs/heads/main/USB_Display.jpg)
 
-Библиотека для работы с дисплеем WeAct Display FS 0.96-inch (160x80) через последовательный порт.  
-Library for working with WeAct Display FS 0.96-inch (160x80) via serial port.
+Библиотека для работы с дисплеями WeAct Display FS 0.96-inch и 3.5-inch через последовательный порт.  
+Library for working with WeAct Display FS 0.96-inch and 3.5-inch displays via serial port.
 
 **GitHub:** https://github.com/CheshirCa/WeActDisplay
 
@@ -19,18 +19,21 @@ WeAct FS display uses **RGB565** format (Red-Green-Blue). All library functions 
 
 ### 🔧 Инициализация и завершение / Initialization and Cleanup
 
-#### WeAct_Init(PortName.s = "COM3")
-**Русский:** Инициализирует дисплей на указанном COM-порту. Автоматически устанавливает ландшафтную ориентацию и максимальную яркость.
+#### WeAct_Init(PortName.s = "COM3", Model.i = #WEACT_MODEL_096)
+**Русский:** Инициализирует выбранную модель дисплея на указанном COM-порту. Второй параметр обязателен для 3.5-inch: `#WEACT_MODEL_350`. Автоматически устанавливает ландшафтную ориентацию и максимальную яркость.
 
-**English:** Initializes the display on the specified COM port. Automatically sets landscape orientation and maximum brightness.
+**English:** Initializes the selected display model on the specified COM port. The second parameter is required for 3.5-inch: `#WEACT_MODEL_350`. It automatically sets landscape orientation and maximum brightness.
 
 ```purebasic
 ; Пример использования / Usage example
-If WeAct_Init("COM3")
+If WeAct_Init("COM17", #WEACT_MODEL_096)
   Debug "Дисплей инициализирован / Display initialized"
 Else
   Debug "Ошибка: " + WeAct_GetLastError()
 EndIf
+
+; 3.5-inch / 3.5 дюйма
+; WeAct_Init("COM21", #WEACT_MODEL_350)
 ```
 
 #### WeAct_Close()
@@ -162,6 +165,47 @@ WeAct_DrawCircleBuffer(120, 40, 15, #WEACT_CYAN, #True)
 ```purebasic
 If WeAct_FlushBuffer()
   Debug "Буфер отправлен / Buffer sent"
+EndIf
+```
+
+#### WeAct_FlushRect(x, y, Width, Height)
+**Русский:** Передаёт на дисплей только прямоугольную область заднего буфера. Используйте для небольших изменений: это заметно быстрее полной передачи на 3.5-inch.
+
+**English:** Sends only a rectangular part of the back buffer. Use it for small changes; it is substantially faster than a full transfer on 3.5-inch.
+
+```purebasic
+WeAct_DrawRectangleBuffer(10, 10, 40, 20, #WEACT_GREEN, #True)
+WeAct_FlushRect(10, 10, 40, 20)
+```
+
+#### WeAct_FlushChangedBuffer()
+**Русский:** Находит ограничивающий прямоугольник всех изменений в заднем буфере и отправляет только его. Если изменений нет, данные не передаются.
+
+**English:** Finds the bounding rectangle of all changes in the back buffer and sends only that area. No data is sent when nothing has changed.
+
+```purebasic
+WeAct_DrawTextSmall(10, 10, "Changed", #WEACT_WHITE)
+WeAct_FlushChangedBuffer()
+```
+
+#### WeAct_UpdateChangedDisplay()
+**Русский:** Передаёт изменившуюся область и переключает буферы. Это вариант `WeAct_UpdateDisplay()` для частичного обновления.
+
+**English:** Sends the changed area and swaps buffers. This is the partial-update equivalent of `WeAct_UpdateDisplay()`.
+
+```purebasic
+WeAct_DrawPixelBuffer(20, 20, #WEACT_RED)
+WeAct_UpdateChangedDisplay()
+```
+
+#### WeAct_SetFastLZEnabled(Enabled)
+**Русский:** Включает или выключает сжатие FastLZ. Поддерживается только моделью 3.5-inch; при небольших или плохо сжимаемых областях библиотека автоматически передаёт данные без сжатия.
+
+**English:** Enables or disables FastLZ compression. It is supported by the 3.5-inch model only; for small or poorly compressible areas the library automatically sends uncompressed data.
+
+```purebasic
+If WeAct_Init("COM21", #WEACT_MODEL_350)
+  WeAct_SetFastLZEnabled(#True)
 EndIf
 ```
 
@@ -410,16 +454,15 @@ WeAct_LoadImageFast(10, 10, "sprite.bmp")  ; Изображение должно
 ### ⚙️ Управление дисплеем / Display Control
 
 #### WeAct_SetOrientation(Orientation)
-**Русский:** Устанавливает ориентацию дисплея. Поддерживает режим автоповорота.
+**Русский:** Устанавливает фиксированную ориентацию дисплея. После смены ориентации получайте размеры через `WeAct_GetDisplayWidth()` и `WeAct_GetDisplayHeight()`. Значение `05` не используется: у 0.96-inch и 3.5-inch нет автоповорота.
 
-**English:** Sets display orientation. Supports auto-rotation mode.
+**English:** Sets a fixed display orientation. After changing orientation, retrieve the dimensions through `WeAct_GetDisplayWidth()` and `WeAct_GetDisplayHeight()`. Value `05` is not used: neither 0.96-inch nor 3.5-inch has auto-rotation.
 
 ```purebasic
-WeAct_SetOrientation(#WEACT_LANDSCAPE)           ; 160x80
-WeAct_SetOrientation(#WEACT_PORTRAIT)            ; 80x160
+WeAct_SetOrientation(#WEACT_LANDSCAPE)           ; 0.96: 160x80, 3.5: 480x320
+WeAct_SetOrientation(#WEACT_PORTRAIT)            ; 0.96: 80x160, 3.5: 320x480
 WeAct_SetOrientation(#WEACT_REVERSE_LANDSCAPE)   ; Перевернутый ландшафт / Reverse landscape
 WeAct_SetOrientation(#WEACT_REVERSE_PORTRAIT)    ; Перевернутый портрет / Reverse portrait
-WeAct_SetOrientation(#WEACT_ROTATE)              ; Автоповорот / Auto-rotation
 ```
 
 #### WeAct_SetBrightness(Brightness, TimeMs = 500)
@@ -462,7 +505,7 @@ WeAct_FillScreen(#WEACT_BLACK)    ; Черный экран / Black screen
 
 ```purebasic
 info$ = WeAct_GetInfo()
-Debug info$  ; "WeAct Display FS 0.96-inch (COM3) 160x80"
+Debug info$  ; Модель, порт, текущий размер и состояние / Model, port, current size and state
 ```
 
 #### WeAct_GetOrientation()
@@ -521,6 +564,47 @@ Debug "Ширина дисплея: " + Str(width) + "px"
 ```purebasic
 height = WeAct_GetDisplayHeight()
 Debug "Высота дисплея: " + Str(height) + "px"
+```
+
+#### WeAct_SetSensorPeriod(PeriodMs)
+**Русский:** Задаёт период опроса встроенного датчика температуры и влажности модели 3.5-inch в миллисекундах.
+
+**English:** Sets the polling period in milliseconds for the built-in temperature and humidity sensor of the 3.5-inch model.
+
+```purebasic
+WeAct_SetSensorPeriod(1000)  ; Опрос раз в секунду / Poll once per second
+```
+
+#### WeAct_PollSensor()
+**Русский:** Немедленно запрашивает датчик 3.5-inch и обновляет кэшированные показания. Возвращает ненулевое значение при успехе.
+
+**English:** Immediately polls the 3.5-inch sensor and updates cached readings. Returns a non-zero value on success.
+
+```purebasic
+If WeAct_PollSensor()
+  Debug "Sensor updated / Датчик обновлён"
+EndIf
+```
+
+#### WeAct_GetSensorValues(*Temperature.Float, *Humidity.Float, MaxAgeMs = 5000)
+**Русский:** Возвращает последние показания температуры и относительной влажности модели 3.5-inch. Если кэш старше `MaxAgeMs`, библиотека сама запрашивает датчик.
+
+**English:** Returns the latest temperature and relative-humidity readings from the 3.5-inch model. If the cache is older than `MaxAgeMs`, the library polls the sensor itself.
+
+```purebasic
+Define temperature.f, humidity.f
+If WeAct_GetSensorValues(@temperature, @humidity)
+  Debug StrF(temperature, 1) + " C, " + StrF(humidity, 1) + " %"
+EndIf
+```
+
+#### WeAct_GetFirmwareVersion(TimeoutMs = 1000)
+**Русский:** Возвращает версию прошивки модели 3.5-inch или пустую строку при тайм-ауте/ошибке.
+
+**English:** Returns the 3.5-inch firmware version, or an empty string on timeout/error.
+
+```purebasic
+Debug "Firmware: " + WeAct_GetFirmwareVersion()
 ```
 
 #### WeAct_GetLastError()
@@ -644,7 +728,7 @@ SendCommand(@cmd(), 3)
 ```purebasic
 XIncludeFile "WeActDisplay.pbi"
 
-If WeAct_Init("COM3")
+If WeAct_Init("COM17", #WEACT_MODEL_096)
   ; Очищаем экран / Clear screen
   WeAct_ClearBuffer(#WEACT_BLACK)
   
@@ -674,7 +758,7 @@ EndIf
 ```purebasic
 XIncludeFile "WeActDisplay.pbi"
 
-If WeAct_Init("COM3")
+If WeAct_Init("COM17", #WEACT_MODEL_096)
   ; Запускаем скроллинг / Start scrolling
   WeAct_StartScrollText("Пример бегущей строки с плавным скроллингом", 12, #SCROLL_LEFT, 40.0, #WEACT_WHITE)
   
@@ -720,8 +804,11 @@ EndIf
 #WEACT_REVERSE_PORTRAIT = 1   ; 80x160 перевернутый / 80x160 reversed
 #WEACT_LANDSCAPE = 2          ; 160x80 (стандарт) / 160x80 (default)
 #WEACT_REVERSE_LANDSCAPE = 3  ; 160x80 перевернутый / 160x80 reversed
-#WEACT_ROTATE = 5             ; Автоповорот / Auto-rotation
 ```
+
+Русский: для 3.5-inch размеры составляют 320x480 в портретной и 480x320 в ландшафтной ориентации. Не используйте жёстко заданные размеры: всегда запрашивайте `WeAct_GetDisplayWidth()` и `WeAct_GetDisplayHeight()`.
+
+English: on 3.5-inch the sizes are 320x480 in portrait and 480x320 in landscape. Do not hard-code dimensions; always query `WeAct_GetDisplayWidth()` and `WeAct_GetDisplayHeight()`.
 
 ## 📋 Константы скроллинга / Scrolling Constants
 
@@ -736,27 +823,29 @@ EndIf
 ## 🛠️ Технические характеристики / Technical Specifications
 
 **Русский:**
-- Дисплей: WeAct Display FS 0.96-inch
-- Разрешение: 160x80 пикселей
+- Дисплеи: WeAct Display FS 0.96-inch и 3.5-inch
+- Нативное разрешение: 0.96-inch — 80x160; 3.5-inch — 320x480 пикселей
 - Подключение: USB-Serial (CH340)
-- Скорость: 115200 бод
+- Скорость: 115200 бод (0.96-inch), 1152000 бод (3.5-inch)
 - Формат цвета: RGB565 (16-bit)
 - Поддержка изображений: BMP, JPEG, PNG, TIFF, TGA
-- Двойная буферизация: 2×25600 байт
+- Двойная буферизация: динамический размер по модели и ориентации
 - Поддержка кириллицы: полная
+- 3.5-inch: FastLZ, частичное обновление, датчик температуры/влажности и версия прошивки
 
 **English:**
-- Display: WeAct Display FS 0.96-inch
-- Resolution: 160x80 pixels
+- Displays: WeAct Display FS 0.96-inch and 3.5-inch
+- Native resolution: 0.96-inch — 80x160; 3.5-inch — 320x480 pixels
 - Connection: USB-Serial (CH340)
-- Baud rate: 115200
+- Baud rate: 115200 (0.96-inch), 1152000 (3.5-inch)
 - Color format: RGB565 (16-bit)
 - Image support: BMP, JPEG, PNG, TIFF, TGA
-- Double buffering: 2×25600 bytes
+- Double buffering: dynamic size by model and orientation
 - Cyrillic support: full
+- 3.5-inch: FastLZ, partial updates, temperature/humidity sensor, and firmware version
 
 ---
 
-**Версия / Version:** 5.1
-**Совместимость / Compatibility:** PureBasic 6.20+, WeAct Display FS 0.96-inch (160x80)  
+**Версия / Version:** 6.0
+**Совместимость / Compatibility:** PureBasic 6.20+, WeAct Display FS 0.96-inch и 3.5-inch  
 **GitHub:** https://github.com/CheshirCa/WeActDisplay

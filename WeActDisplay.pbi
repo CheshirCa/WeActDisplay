@@ -1,12 +1,20 @@
-; WeAct Display FS Library for PureBasic
-; Supports WeAct Display FS 0.96-inch (160x80) via serial port
+﻿; Copyright (C) CheshirCa 2026   https://t.me/cheshircanest
+; Modified 2026-10-14 for two display models; GPL-3.0, see LICENSE.
+; WeAct Display FS Library for PureBasic 6.0.0
+; Supports WeAct Display FS 0.96-inch and 3.5-inch via serial port
 ; GitHub: https://github.com/CheshirCa/WeActDisplay
 ; Compatibility: PureBasic 6.20+
+; FastLZ stream encoding is based on the documented FastLZ format.
+; FastLZ Copyright (C) 2005-2020 Ariya Hidayat; MIT License.
 
 ; Display physical dimensions
 #WEACT_DISPLAY_WIDTH = 160
 #WEACT_DISPLAY_HEIGHT = 80
 #WEACT_BAUDRATE = 115200
+#WEACT_BAUDRATE_350 = 1152000
+#WEACT_MODEL_096 = 0
+#WEACT_MODEL_350 = 1
+#WEACT_BYTES_PER_PIXEL = 2
 ; Maximum buffer size for double buffering (160*80*2 bytes = 25600)
 #WEACT_MAX_BUFFER_SIZE = 25600
 
@@ -16,7 +24,7 @@ Enumeration
   #WEACT_REVERSE_PORTRAIT = 1     ; Portrait mode rotated 180 degrees
   #WEACT_LANDSCAPE = 2            ; Landscape mode (160x80) - default
   #WEACT_REVERSE_LANDSCAPE = 3    ; Landscape mode rotated 180 degrees
-  #WEACT_ROTATE = 5               ; Auto-rotation mode (hardware feature)
+  #WEACT_ROTATE = 5               ; Deprecated reserved value; unsupported by both models
 EndEnumeration
 
 ; Text scrolling directions
@@ -27,9 +35,9 @@ Enumeration
   #SCROLL_DOWN
 EndEnumeration
 
-; Predefined colors in BRG565 format
-; Note: The display uses BRG565 (Blue-Red-Green) instead of RGB565
-; Each color is 16-bit: 5 bits for blue, 6 bits for red, 5 bits for green
+; Predefined colors in RGB565 format
+; Both displays use RGB565 in little-endian byte order
+; Each color is 16-bit: 5 bits red, 6 bits green, 5 bits blue
 #WEACT_RED    = $F800    ; Binary: 11111 00000 00000
 #WEACT_GREEN  = $07E0    ; Binary: 00000 111111 00000  
 #WEACT_BLUE   = $001F    ; Binary: 00000 00000 11111
@@ -41,6 +49,10 @@ EndEnumeration
 
 Structure WeActDisplay
   SerialPort.i              ; Handle for the serial port connection
+  Model.i                   ; Explicit display model
+  PhysicalWidth.i
+  PhysicalHeight.i
+  BytesPerPixel.i
   PortName.s                ; Name of the serial port (e.g., "COM3")
   IsConnected.i             ; Flag: 1 if connected, 0 if not
   CurrentOrientation.i      ; Current display orientation mode
@@ -51,6 +63,14 @@ Structure WeActDisplay
   *FrameBuffer              ; Pointer to the front buffer (displayed content)
   *BackBuffer               ; Pointer to the back buffer (drawing canvas for double buffering)
   LastError.s               ; Last error message for debugging
+  SensorPeriod.i
+  SensorPosition.i
+  SensorLastTime.q
+  Temperature.f
+  Humidity.f
+  SensorValid.i
+  SensorPacket.a[6]
+  FastLZEnabled.i
 EndStructure
 
 ; Font cache structure to improve performance by reusing loaded fonts
@@ -67,7 +87,7 @@ Structure ScrollText
   Direction.i               ; Scroll direction (#SCROLL_LEFT, #SCROLL_RIGHT, etc.)
   Speed.f                   ; Scroll speed in pixels per second (floating point for precision)
   Position.f                ; Current text position (floating point for smooth movement)
-  Color.i                   ; Text color in BRG565 format
+  Color.i                   ; Text color in RGB565 format
   FontName.s                ; Name of the font to use
   Active.i                  ; Flag: 1 if scrolling is active, 0 if not
   LastUpdate.i              ; Timestamp of last update (in milliseconds)
@@ -80,6 +100,7 @@ Global NewMap FontCache.FontCache()
 Global ScrollText.ScrollText
 
 Declare WeAct_SetOrientation(Orientation)
+Declare WeAct_Close()
 
 ; { BASE FUNCTIONS }
 
@@ -104,20 +125,43 @@ Procedure.i RGBToRGB565_Fixed(r, g, b)
 EndProcedure
 
 ; Macro to provide backward compatibility with old function name
-; Note: Despite the name, this actually converts to RGB565, not BRG565
-; The display hardware expects BRG565 but stores it in RGB565 format
+; Note: Despite the name, this actually converts to RGB565, not RGB565
+; Kept as an alias for source compatibility
 Macro RGBToRGB565(r, g, b)
   RGBToRGB565_Fixed(r, g, b)
 EndMacro
 
-Procedure SendCommand(*Data, Length)
-  ; Send raw command data to the display over serial connection
-  If WeActDisplay\IsConnected
-    Protected Result = WriteSerialPortData(WeActDisplay\SerialPort, *Data, Length)
-    Delay(5)  ; Small delay to ensure command is processed
-    ProcedureReturn Result
+Procedure.i WeAct_WriteAll(*Data, Length)
+  ; A serial write may accept only part of a block. Never restart the image stream.
+  Protected sent.i, block.i, count.i, deadline.q
+  If Not WeActDisplay\IsConnected Or *Data = 0 Or Length < 1
+    WeActDisplay\LastError = "Serial port is not connected or data is empty"
+    ProcedureReturn #False
   EndIf
-  ProcedureReturn #False
+  While sent < Length
+    block = Length - sent
+    If block > 4096 : block = 4096 : EndIf
+    deadline = ElapsedMilliseconds() + 5000
+    Repeat
+      count = WriteSerialPortData(WeActDisplay\SerialPort, *Data + sent, block)
+      If count > 0
+        sent + count
+        Break
+      EndIf
+      If ElapsedMilliseconds() >= deadline
+        WeActDisplay\LastError = "Serial write timed out after " + Str(sent) + " of " + Str(Length) + " bytes (error " + Str(SerialPortError(WeActDisplay\SerialPort)) + ")"
+        CloseSerialPort(WeActDisplay\SerialPort)
+        WeActDisplay\IsConnected = #False
+        ProcedureReturn #False
+      EndIf
+      Delay(1)
+    ForEver
+  Wend
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i SendCommand(*Data, Length)
+  ProcedureReturn WeAct_WriteAll(*Data, Length)
 EndProcedure
 
 ; { INITIALIZATION AND CLEANUP }
@@ -130,56 +174,74 @@ Procedure WeAct_InitImageDecoders()
   UseTGAImageDecoder()
 EndProcedure
 
-Procedure WeAct_Init(PortName.s = "COM3")
-  ; Initialize connection to the WeAct display
-  ; PortName: Serial port name (e.g., "COM3" on Windows, "/dev/ttyUSB0" on Linux)
-  
-  ; Open serial port with specified parameters:
-  ; - Baud rate: 115200 (standard for WeAct display)
-  ; - No parity, 8 data bits, 1 stop bit, no hardware handshake
-  ; - Input/output buffer size: 2048 bytes each
-  WeActDisplay\SerialPort = OpenSerialPort(#PB_Any, PortName, #WEACT_BAUDRATE, 
-                                          #PB_SerialPort_NoParity, 8, 1, 
-                                          #PB_SerialPort_NoHandshake, 2048, 2048)
-  
-  If WeActDisplay\SerialPort
-    ; Store connection parameters
-    WeActDisplay\PortName = PortName
-    WeActDisplay\IsConnected = #True
-    WeActDisplay\CurrentOrientation = #WEACT_LANDSCAPE
-    WeActDisplay\CurrentBrightness = 255
-    WeActDisplay\DisplayWidth = #WEACT_DISPLAY_WIDTH
-    WeActDisplay\DisplayHeight = #WEACT_DISPLAY_HEIGHT
-    WeActDisplay\BufferSize = #WEACT_MAX_BUFFER_SIZE
-    
-    ; Allocate memory for double buffering
-    ; Front buffer: currently displayed frame
-    ; Back buffer: frame being prepared for next display update
-    WeActDisplay\FrameBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
-    WeActDisplay\BackBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
-    
-    If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-      ; Clear both buffers to black
-      FillMemory(WeActDisplay\FrameBuffer, #WEACT_MAX_BUFFER_SIZE, 0)
-      FillMemory(WeActDisplay\BackBuffer, #WEACT_MAX_BUFFER_SIZE, 0)
-      
-      ; Initialize image decoders and set default orientation
-      WeAct_InitImageDecoders()
-      WeAct_SetOrientation(#WEACT_LANDSCAPE)
-      Delay(500)  ; Wait for display to initialize
-      
-      WeActDisplay\LastError = ""
-      ProcedureReturn #True
-    Else
-      WeActDisplay\IsConnected = #False
-      WeActDisplay\LastError = "Failed to allocate memory buffers"
-      ProcedureReturn #False
-    EndIf
+Procedure.i WeAct_InitInternal(PortName.s, Model.i, PreserveScreen.i)
+  Protected baud.i, orientation.i
+  WeAct_Close()
+  If Model <> #WEACT_MODEL_096 And Model <> #WEACT_MODEL_350
+    WeActDisplay\LastError = "Invalid display model"
+    ProcedureReturn #False
+  EndIf
+  WeActDisplay\Model = Model
+  WeActDisplay\BytesPerPixel = #WEACT_BYTES_PER_PIXEL
+  If Model = #WEACT_MODEL_350
+    WeActDisplay\PhysicalWidth = 320
+    WeActDisplay\PhysicalHeight = 480
+    baud = #WEACT_BAUDRATE_350
+    orientation = #WEACT_PORTRAIT
   Else
-    WeActDisplay\IsConnected = #False
+    WeActDisplay\PhysicalWidth = 80
+    WeActDisplay\PhysicalHeight = 160
+    baud = #WEACT_BAUDRATE
+    orientation = #WEACT_LANDSCAPE
+  EndIf
+  WeActDisplay\BufferSize = WeActDisplay\PhysicalWidth * WeActDisplay\PhysicalHeight * WeActDisplay\BytesPerPixel
+  WeActDisplay\CurrentOrientation = orientation
+  If orientation = #WEACT_LANDSCAPE
+    WeActDisplay\DisplayWidth = WeActDisplay\PhysicalHeight
+    WeActDisplay\DisplayHeight = WeActDisplay\PhysicalWidth
+  Else
+    WeActDisplay\DisplayWidth = WeActDisplay\PhysicalWidth
+    WeActDisplay\DisplayHeight = WeActDisplay\PhysicalHeight
+  EndIf
+  WeActDisplay\FrameBuffer = AllocateMemory(WeActDisplay\BufferSize)
+  WeActDisplay\BackBuffer = AllocateMemory(WeActDisplay\BufferSize)
+  If Not WeActDisplay\FrameBuffer Or Not WeActDisplay\BackBuffer
+    WeAct_Close()
+    WeActDisplay\LastError = "Failed to allocate memory buffers"
+    ProcedureReturn #False
+  EndIf
+  FillMemory(WeActDisplay\FrameBuffer, WeActDisplay\BufferSize, 0)
+  FillMemory(WeActDisplay\BackBuffer, WeActDisplay\BufferSize, 0)
+  WeActDisplay\SerialPort = OpenSerialPort(#PB_Any, PortName, baud,
+                                          #PB_SerialPort_NoParity, 8, 1,
+                                          #PB_SerialPort_NoHandshake, 2048, 8192)
+  If Not WeActDisplay\SerialPort
+    WeAct_Close()
     WeActDisplay\LastError = "Failed to open serial port " + PortName
     ProcedureReturn #False
   EndIf
+  WeActDisplay\IsConnected = #True
+  WeActDisplay\PortName = PortName
+  WeActDisplay\CurrentBrightness = 255
+  WeActDisplay\SensorPeriod = 0
+  WeActDisplay\SensorPosition = 0
+  WeActDisplay\SensorValid = #False
+  SerialPortTimeouts(WeActDisplay\SerialPort, 100, 100, 0, 1000, 1)
+  WeAct_InitImageDecoders()
+  If Not PreserveScreen
+    If Not WeAct_SetOrientation(orientation)
+      Protected errorText.s = WeActDisplay\LastError
+      WeAct_Close()
+      WeActDisplay\LastError = errorText
+      ProcedureReturn #False
+    EndIf
+  EndIf
+  WeActDisplay\LastError = ""
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i WeAct_Init(PortName.s = "COM3", Model.i = #WEACT_MODEL_096)
+  ProcedureReturn WeAct_InitInternal(PortName, Model, #False)
 EndProcedure
 
 Procedure WeAct_Close()
@@ -217,8 +279,8 @@ Procedure WeAct_ClearBuffer(Color = #WEACT_BLACK)
   Protected i
   Protected *ptr = WeActDisplay\BackBuffer
   ; Split 16-bit color into two 8-bit parts for faster filling
-  Protected color_l = Color >> 8      ; High byte of color
-  Protected color_h = Color & $FF     ; Low byte of color
+  Protected color_l = Color & $FF     ; RGB565 little endian, as in DrawPixelBuffer()
+  Protected color_h = (Color >> 8) & $FF
   Protected pixelCount = WeActDisplay\DisplayWidth * WeActDisplay\DisplayHeight
   
   ; Fill buffer with color (each pixel = 2 bytes)
@@ -249,30 +311,39 @@ Procedure WeAct_DrawRectangleBuffer(x, y, Width, Height, Color, Filled = #True)
   ; Draw rectangle to back buffer
   ; x, y: Top-left corner coordinates
   ; Width, Height: Rectangle dimensions
-  ; Color: BRG565 color value
+  ; Color: RGB565 color value
   ; Filled: #True for filled rectangle, #False for outline only
-  Protected xx, yy
+  Protected xx.i, yy.i, startX.i, startY.i, endX.i, endY.i
+  Protected rawEndX.q, rawEndY.q
+  If Width <= 0 Or Height <= 0 : ProcedureReturn : EndIf
+  rawEndX = x
+  rawEndX + Width - 1
+  rawEndY = y
+  rawEndY + Height - 1
+  If rawEndX < 0 Or rawEndY < 0 Or x >= WeActDisplay\DisplayWidth Or y >= WeActDisplay\DisplayHeight
+    ProcedureReturn
+  EndIf
+  startX = x : If startX < 0 : startX = 0 : EndIf
+  startY = y : If startY < 0 : startY = 0 : EndIf
+  endX = rawEndX : If rawEndX >= WeActDisplay\DisplayWidth : endX = WeActDisplay\DisplayWidth - 1 : EndIf
+  endY = rawEndY : If rawEndY >= WeActDisplay\DisplayHeight : endY = WeActDisplay\DisplayHeight - 1 : EndIf
   
   If Filled
     ; Draw filled rectangle
-    For yy = y To y + Height - 1
-      If yy >= 0 And yy < WeActDisplay\DisplayHeight
-        For xx = x To x + Width - 1
-          If xx >= 0 And xx < WeActDisplay\DisplayWidth
-            WeAct_DrawPixelBuffer(xx, yy, Color)
-          EndIf
-        Next
-      EndIf
+    For yy = startY To endY
+      For xx = startX To endX
+        WeAct_DrawPixelBuffer(xx, yy, Color)
+      Next
     Next
   Else
     ; Draw rectangle outline
     ; Top and bottom edges
-    For xx = x To x + Width - 1
+    For xx = startX To endX
       WeAct_DrawPixelBuffer(xx, y, Color)
       WeAct_DrawPixelBuffer(xx, y + Height - 1, Color)
     Next
     ; Left and right edges
-    For yy = y To y + Height - 1
+    For yy = startY To endY
       WeAct_DrawPixelBuffer(x, yy, Color)
       WeAct_DrawPixelBuffer(x + Width - 1, yy, Color)
     Next
@@ -313,9 +384,12 @@ Procedure WeAct_DrawCircleBuffer(cx, cy, radius, Color, Filled = #False)
   ; Draw circle with center at (cx, cy) and given radius
   ; cx, cy: Center coordinates
   ; radius: Circle radius in pixels
-  ; Color: BRG565 color value
+  ; Color: RGB565 color value
   ; Filled: #True for filled circle, #False for outline
   Protected x, y, d
+  If radius < 0 Or radius > WeActDisplay\DisplayWidth + WeActDisplay\DisplayHeight
+    ProcedureReturn
+  EndIf
   
   If Filled
     ; Draw filled circle (simple but slower method)
@@ -358,51 +432,271 @@ EndProcedure
 
 ; { DISPLAY OUTPUT FUNCTIONS }
 
-Procedure WeAct_FlushBuffer()
-  ; Send back buffer contents to the physical display
-  If WeActDisplay\BackBuffer = 0 : ProcedureReturn #False : EndIf
-  If Not WeActDisplay\IsConnected : ProcedureReturn #False : EndIf
-  
-  ; Command format for sending image data to display:
-  ; Byte 0: Command ID (0x05 = draw image)
-  ; Bytes 1-4: Starting coordinates (x1, y1) as 16-bit values
-  ; Bytes 5-8: Ending coordinates (x2, y2) as 16-bit values
-  ; Byte 9: Terminator (0x0A)
-  Dim Command.b(10)
-  Command(0) = $05  ; Draw command
-  
-  ; Starting coordinates (0, 0)
-  Command(1) = 0
-  Command(2) = 0
-  Command(3) = 0
-  Command(4) = 0
-  
-  ; Calculate ending coordinates (width-1, height-1)
-  Protected x_end = WeActDisplay\DisplayWidth - 1
-  Command(5) = x_end & $FF        ; X low byte
-  Command(6) = (x_end >> 8) & $FF ; X high byte
-  
-  Protected y_end = WeActDisplay\DisplayHeight - 1
-  Command(7) = y_end & $FF        ; Y low byte
-  Command(8) = (y_end >> 8) & $FF ; Y high byte
-  
-  Command(9) = $0A  ; Command terminator
-  
-  ; Send command header
-  If WriteSerialPortData(WeActDisplay\SerialPort, @Command(), 10)
-    Delay(10)  ; Small delay before sending pixel data
-    
-    ; Calculate total bytes to send: width * height * 2 bytes per pixel
-    Protected bytesToSend = WeActDisplay\DisplayWidth * WeActDisplay\DisplayHeight * 2
-    
-    ; Send the actual pixel data from back buffer
-    If WriteSerialPortData(WeActDisplay\SerialPort, WeActDisplay\BackBuffer, bytesToSend)
-      Delay(10)  ; Small delay after sending data
-      ProcedureReturn #True
-    EndIf
+Procedure.i WeAct_MakeRectCommand(x.i, y.i, Width.i, Height.i, *Command)
+  ; Useful for both transport and reproducible packet tests.
+  If *Command = 0 Or x < 0 Or y < 0 Or Width <= 0 Or Height <= 0 Or x >= WeActDisplay\DisplayWidth Or y >= WeActDisplay\DisplayHeight
+    ProcedureReturn #False
   EndIf
-  
-  WeActDisplay\LastError = "Failed to flush buffer to display"
+  If Width > WeActDisplay\DisplayWidth - x Or Height > WeActDisplay\DisplayHeight - y
+    ProcedureReturn #False
+  EndIf
+  PokeA(*Command, $05)
+  PokeA(*Command + 1, x & $FF)
+  PokeA(*Command + 2, (x >> 8) & $FF)
+  PokeA(*Command + 3, y & $FF)
+  PokeA(*Command + 4, (y >> 8) & $FF)
+  PokeA(*Command + 5, (x + Width - 1) & $FF)
+  PokeA(*Command + 6, ((x + Width - 1) >> 8) & $FF)
+  PokeA(*Command + 7, (y + Height - 1) & $FF)
+  PokeA(*Command + 8, ((y + Height - 1) >> 8) & $FF)
+  PokeA(*Command + 9, $0A)
+  ProcedureReturn #True
+EndProcedure
+
+; { FASTLZ TRANSPORT }
+; The 3.5-inch firmware accepts independent FastLZ level-1 blocks.  The encoder
+; uses only the documented byte stream: literal runs and 8 KiB back references.
+#WEACT_FASTLZ_HASH_SIZE = 8192
+#WEACT_FASTLZ_MAX_MATCH = 264
+
+Procedure.i WeAct_FastLZCompress(*Input, InputLength.i, *Output, OutputCapacity.i)
+  Protected Dim Hash.i(#WEACT_FASTLZ_HASH_SIZE - 1)
+  Protected i.i, anchor.i, outputPosition.i, hashIndex.i, reference.i
+  Protected matchLength.i, distance.i, literalLength.i, copyLength.i, extraLength.i
+
+  If *Input = 0 Or *Output = 0 Or InputLength < 1
+    ProcedureReturn 0
+  EndIf
+  For i = 0 To #WEACT_FASTLZ_HASH_SIZE - 1
+    Hash(i) = -1
+  Next
+
+  i = 0
+  anchor = 0
+  While i <= InputLength - 3
+    hashIndex = ((PeekA(*Input + i) & $FF) * 251 + (PeekA(*Input + i + 1) & $FF) * 17 + (PeekA(*Input + i + 2) & $FF)) & (#WEACT_FASTLZ_HASH_SIZE - 1)
+    reference = Hash(hashIndex)
+    Hash(hashIndex) = i
+
+    matchLength = 0
+    distance = i - reference
+    If reference >= 0 And distance <= 8192 And PeekA(*Input + reference) = PeekA(*Input + i) And PeekA(*Input + reference + 1) = PeekA(*Input + i + 1) And PeekA(*Input + reference + 2) = PeekA(*Input + i + 2)
+      matchLength = 3
+      While matchLength < #WEACT_FASTLZ_MAX_MATCH And i + matchLength < InputLength And PeekA(*Input + reference + matchLength) = PeekA(*Input + i + matchLength)
+        matchLength + 1
+      Wend
+    EndIf
+
+    If matchLength = 0
+      i + 1
+      Continue
+    EndIf
+
+    literalLength = i - anchor
+    While literalLength > 0
+      copyLength = literalLength
+      If copyLength > 32 : copyLength = 32 : EndIf
+      If outputPosition + copyLength + 1 > OutputCapacity : ProcedureReturn 0 : EndIf
+      PokeA(*Output + outputPosition, copyLength - 1)
+      outputPosition + 1
+      CopyMemory(*Input + anchor, *Output + outputPosition, copyLength)
+      outputPosition + copyLength
+      anchor + copyLength
+      literalLength - copyLength
+    Wend
+
+    extraLength = matchLength - 2
+    If extraLength < 7
+      If outputPosition + 2 > OutputCapacity : ProcedureReturn 0 : EndIf
+      PokeA(*Output + outputPosition, (extraLength << 5) | ((distance - 1) >> 8))
+      PokeA(*Output + outputPosition + 1, (distance - 1) & $FF)
+      outputPosition + 2
+    Else
+      If outputPosition + 3 > OutputCapacity : ProcedureReturn 0 : EndIf
+      PokeA(*Output + outputPosition, (7 << 5) | ((distance - 1) >> 8))
+      PokeA(*Output + outputPosition + 1, extraLength - 7)
+      PokeA(*Output + outputPosition + 2, (distance - 1) & $FF)
+      outputPosition + 3
+    EndIf
+
+    For hashIndex = i + 1 To i + matchLength - 1
+      If hashIndex <= InputLength - 3
+        Hash(((PeekA(*Input + hashIndex) & $FF) * 251 + (PeekA(*Input + hashIndex + 1) & $FF) * 17 + (PeekA(*Input + hashIndex + 2) & $FF)) & (#WEACT_FASTLZ_HASH_SIZE - 1)) = hashIndex
+      EndIf
+    Next
+    i + matchLength
+    anchor = i
+  Wend
+
+  literalLength = InputLength - anchor
+  While literalLength > 0
+    copyLength = literalLength
+    If copyLength > 32 : copyLength = 32 : EndIf
+    If outputPosition + copyLength + 1 > OutputCapacity : ProcedureReturn 0 : EndIf
+    PokeA(*Output + outputPosition, copyLength - 1)
+    outputPosition + 1
+    CopyMemory(*Input + anchor, *Output + outputPosition, copyLength)
+    outputPosition + copyLength
+    anchor + copyLength
+    literalLength - copyLength
+  Wend
+  ProcedureReturn outputPosition
+EndProcedure
+
+Procedure.i WeAct_FastLZDecompress(*Input, InputLength.i, *Output, OutputCapacity.i)
+  Protected inputPosition.i, outputPosition.i, control.i, copyLength.i, offset.i, reference.i, i.i
+  If *Input = 0 Or *Output = 0 Or InputLength < 1
+    ProcedureReturn 0
+  EndIf
+  control = PeekA(*Input) & $1F
+  inputPosition = 1
+  While #True
+    If control >= 32
+      copyLength = (control >> 5) - 1
+      offset = (control & $1F) << 8
+      If copyLength = 6
+        If inputPosition >= InputLength : ProcedureReturn 0 : EndIf
+        copyLength + (PeekA(*Input + inputPosition) & $FF)
+        inputPosition + 1
+      EndIf
+      If inputPosition >= InputLength : ProcedureReturn 0 : EndIf
+      offset + (PeekA(*Input + inputPosition) & $FF)
+      inputPosition + 1
+      copyLength + 3
+      reference = outputPosition - offset - 1
+      If reference < 0 Or outputPosition + copyLength > OutputCapacity : ProcedureReturn 0 : EndIf
+      For i = 0 To copyLength - 1
+        PokeA(*Output + outputPosition + i, PeekA(*Output + reference + i))
+      Next
+      outputPosition + copyLength
+    Else
+      copyLength = control + 1
+      If inputPosition + copyLength > InputLength Or outputPosition + copyLength > OutputCapacity : ProcedureReturn 0 : EndIf
+      CopyMemory(*Input + inputPosition, *Output + outputPosition, copyLength)
+      inputPosition + copyLength
+      outputPosition + copyLength
+    EndIf
+    If inputPosition >= InputLength : Break : EndIf
+    control = PeekA(*Input + inputPosition) & $FF
+    inputPosition + 1
+  Wend
+  ProcedureReturn outputPosition
+EndProcedure
+
+Procedure.i WeAct_SetFastLZEnabled(Enabled.i)
+  If WeActDisplay\Model <> #WEACT_MODEL_350
+    WeActDisplay\LastError = "FastLZ is supported only by the 3.5-inch display"
+    ProcedureReturn #False
+  EndIf
+  WeActDisplay\FastLZEnabled = Bool(Enabled)
+  WeActDisplay\LastError = ""
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i WeAct_FlushRectFastLZ(x.i, y.i, Width.i, Height.i)
+  Protected row.i, rowBytes.i, offset.i, outputCapacity.i, compressedLength.i
+  Protected *Compressed, Dim Command.a(9), Dim BlockHeader.a(3)
+  If Not WeActDisplay\IsConnected Or Not WeActDisplay\BackBuffer
+    WeActDisplay\LastError = "Display not initialized"
+    ProcedureReturn #False
+  EndIf
+  If Not WeAct_MakeRectCommand(x, y, Width, Height, @Command())
+    WeActDisplay\LastError = "Invalid rectangle or rectangle exceeds display bounds"
+    ProcedureReturn #False
+  EndIf
+  PokeA(@Command(), $15)
+  If Not SendCommand(@Command(), 10) : ProcedureReturn #False : EndIf
+
+  rowBytes = Width * WeActDisplay\BytesPerPixel
+  outputCapacity = rowBytes + (rowBytes / 32) + 16
+  *Compressed = AllocateMemory(outputCapacity)
+  If *Compressed = 0
+    WeActDisplay\LastError = "Failed to allocate FastLZ buffer"
+    ProcedureReturn #False
+  EndIf
+  For row = y To y + Height - 1
+    offset = (row * WeActDisplay\DisplayWidth + x) * WeActDisplay\BytesPerPixel
+    compressedLength = WeAct_FastLZCompress(WeActDisplay\BackBuffer + offset, rowBytes, *Compressed, outputCapacity)
+    If compressedLength = 0 Or compressedLength > $FFFF
+      FreeMemory(*Compressed)
+      WeActDisplay\LastError = "FastLZ compression failed"
+      ProcedureReturn #False
+    EndIf
+    PokeA(@BlockHeader(), rowBytes & $FF)
+    PokeA(@BlockHeader() + 1, (rowBytes >> 8) & $FF)
+    PokeA(@BlockHeader() + 2, compressedLength & $FF)
+    PokeA(@BlockHeader() + 3, (compressedLength >> 8) & $FF)
+    If Not WeAct_WriteAll(@BlockHeader(), 4) Or Not WeAct_WriteAll(*Compressed, compressedLength)
+      FreeMemory(*Compressed)
+      ProcedureReturn #False
+    EndIf
+  Next
+  FreeMemory(*Compressed)
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i WeAct_FlushRect(x.i, y.i, Width.i, Height.i)
+  ; Public dimensions are width/height; the wire format uses inclusive end points.
+  Protected row.i, rowBytes.i, offset.i
+  Dim Command.a(9)
+  If WeActDisplay\FastLZEnabled
+    ProcedureReturn WeAct_FlushRectFastLZ(x, y, Width, Height)
+  EndIf
+  If Not WeActDisplay\IsConnected Or Not WeActDisplay\BackBuffer
+    WeActDisplay\LastError = "Display not initialized"
+    ProcedureReturn #False
+  EndIf
+  If Not WeAct_MakeRectCommand(x, y, Width, Height, @Command())
+    WeActDisplay\LastError = "Invalid rectangle or rectangle exceeds display bounds"
+    ProcedureReturn #False
+  EndIf
+  If Not SendCommand(@Command(), 10) : ProcedureReturn #False : EndIf
+  rowBytes = Width * WeActDisplay\BytesPerPixel
+  If Width = WeActDisplay\DisplayWidth
+    offset = y * rowBytes
+    ProcedureReturn WeAct_WriteAll(WeActDisplay\BackBuffer + offset, rowBytes * Height)
+  EndIf
+  For row = y To y + Height - 1
+    offset = (row * WeActDisplay\DisplayWidth + x) * WeActDisplay\BytesPerPixel
+    If Not WeAct_WriteAll(WeActDisplay\BackBuffer + offset, rowBytes)
+      ProcedureReturn #False
+    EndIf
+  Next
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.i WeAct_FlushBuffer()
+  ProcedureReturn WeAct_FlushRect(0, 0, WeActDisplay\DisplayWidth, WeActDisplay\DisplayHeight)
+EndProcedure
+
+Procedure.i WeAct_FlushChangedBuffer()
+  ; Compare frames without copying either one; send one bounding rectangle.
+  Protected x.i, y.i, offset.i, minX.i, minY.i, maxX.i, maxY.i
+  If Not WeActDisplay\FrameBuffer Or Not WeActDisplay\BackBuffer
+    ProcedureReturn #False
+  EndIf
+  minX = WeActDisplay\DisplayWidth : minY = WeActDisplay\DisplayHeight
+  maxX = -1 : maxY = -1
+  For y = 0 To WeActDisplay\DisplayHeight - 1
+    For x = 0 To WeActDisplay\DisplayWidth - 1
+      offset = (y * WeActDisplay\DisplayWidth + x) * WeActDisplay\BytesPerPixel
+      If PeekW(WeActDisplay\FrameBuffer + offset) <> PeekW(WeActDisplay\BackBuffer + offset)
+        If x < minX : minX = x : EndIf
+        If x > maxX : maxX = x : EndIf
+        If y < minY : minY = y : EndIf
+        If y > maxY : maxY = y : EndIf
+      EndIf
+    Next
+  Next
+  If maxX = -1 : ProcedureReturn #True : EndIf
+  ProcedureReturn WeAct_FlushRect(minX, minY, maxX - minX + 1, maxY - minY + 1)
+EndProcedure
+
+Procedure.i WeAct_UpdateChangedDisplay()
+  If WeAct_FlushChangedBuffer()
+    WeAct_SwapBuffers()
+    ProcedureReturn #True
+  EndIf
   ProcedureReturn #False
 EndProcedure
 
@@ -1206,9 +1500,9 @@ EndProcedure
 
 Procedure WeAct_SetOrientation(Orientation)
   ; Set display orientation mode
-  ; Valid values: 0-3 for fixed orientations, 5 for auto-rotation
-  If Orientation < 0 Or (Orientation > 3 And Orientation <> 5)
-    WeActDisplay\LastError = "Invalid orientation value. Use 0-3 or 5 for ROTATE"
+  ; Only documented fixed orientations are safe to send to either display model.
+  If Orientation < 0 Or Orientation > 3
+    WeActDisplay\LastError = "Unsupported orientation. Use fixed values 0-3"
     ProcedureReturn #False
   EndIf
   
@@ -1217,19 +1511,13 @@ Procedure WeAct_SetOrientation(Orientation)
   
   Select Orientation
     Case #WEACT_PORTRAIT, #WEACT_REVERSE_PORTRAIT
-      ; Portrait mode: 80x160
-      newWidth = 80
-      newHeight = 160
+      newWidth = WeActDisplay\PhysicalWidth
+      newHeight = WeActDisplay\PhysicalHeight
       
     Case #WEACT_LANDSCAPE, #WEACT_REVERSE_LANDSCAPE
-      ; Landscape mode: 160x80 (default)
-      newWidth = 160
-      newHeight = 80
+      newWidth = WeActDisplay\PhysicalHeight
+      newHeight = WeActDisplay\PhysicalWidth
       
-    Case #WEACT_ROTATE
-      ; Auto-rotation: keep current dimensions
-      newWidth = WeActDisplay\DisplayWidth
-      newHeight = WeActDisplay\DisplayHeight
   EndSelect
   
   ; Send orientation command to display
@@ -1242,17 +1530,16 @@ Procedure WeAct_SetOrientation(Orientation)
   If SendCommand(@Command(), 3)
     ; Update local state
     WeActDisplay\CurrentOrientation = Orientation
-    Delay(100)  ; Wait for display to process command
     
     ; Update display dimensions
     WeActDisplay\DisplayWidth = newWidth
     WeActDisplay\DisplayHeight = newHeight
-    WeActDisplay\BufferSize = newWidth * newHeight * 2
+    WeActDisplay\BufferSize = newWidth * newHeight * WeActDisplay\BytesPerPixel
     
     ; Clear buffers after orientation change
     If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-      FillMemory(WeActDisplay\FrameBuffer, #WEACT_MAX_BUFFER_SIZE, 0)
-      FillMemory(WeActDisplay\BackBuffer, #WEACT_MAX_BUFFER_SIZE, 0)
+      FillMemory(WeActDisplay\FrameBuffer, WeActDisplay\BufferSize, 0)
+      FillMemory(WeActDisplay\BackBuffer, WeActDisplay\BufferSize, 0)
       ProcedureReturn #True
     Else
       WeActDisplay\LastError = "Buffer memory not allocated"
@@ -1292,6 +1579,11 @@ EndProcedure
 
 Procedure WeAct_SystemReset()
   ; Send system reset command to display
+  ; The 3.5-inch reference protocol does not document a reset command.
+  If WeActDisplay\Model = #WEACT_MODEL_350
+    WeActDisplay\LastError = "System reset is not supported by the documented 3.5-inch protocol"
+    ProcedureReturn #False
+  EndIf
   Dim Command.b(1)
   Command(0) = $40  ; Reset command
   Command(1) = $0A  ; Terminator
@@ -1341,7 +1633,11 @@ Procedure WeAct_FillScreen(Color)
   Command(11) = $0A  ; Terminator
   
   If SendCommand(@Command(), 12)
-    Delay(50)  ; Wait for command to complete
+    ; Keep the software buffers consistent with the hardware fill.
+    WeAct_ClearBuffer(Color)
+    If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
+      CopyMemory(WeActDisplay\BackBuffer, WeActDisplay\FrameBuffer, WeActDisplay\BufferSize)
+    EndIf
     ProcedureReturn #True
   EndIf
   
@@ -1354,7 +1650,9 @@ EndProcedure
 Procedure.s WeAct_GetInfo()
   ; Get display information as formatted string
   If WeActDisplay\IsConnected
-    ProcedureReturn "WeAct Display FS 0.96-inch (" + WeActDisplay\PortName + ") " + 
+    Protected modelName.s = "0.96-inch"
+    If WeActDisplay\Model = #WEACT_MODEL_350 : modelName = "3.5-inch" : EndIf
+    ProcedureReturn "WeAct Display FS " + modelName + " (" + WeActDisplay\PortName + ") " +
                     Str(WeActDisplay\DisplayWidth) + "x" + Str(WeActDisplay\DisplayHeight)
   EndIf
   ProcedureReturn "Not connected"
@@ -1383,6 +1681,139 @@ EndProcedure
 Procedure.i WeAct_GetDisplayHeight()
   ; Get current display height (depends on orientation)
   ProcedureReturn WeActDisplay\DisplayHeight
+EndProcedure
+
+Procedure.i WeAct_SetSensorPeriod(PeriodMs.i)
+  ; 3.5-inch firmware: 0 disables reports, otherwise 500..65535 ms.
+  Dim Command.a(3)
+  If WeActDisplay\Model <> #WEACT_MODEL_350
+    WeActDisplay\LastError = "Sensors are not supported by the 0.96-inch display"
+    ProcedureReturn #False
+  EndIf
+  If PeriodMs <> 0 And (PeriodMs < 500 Or PeriodMs > 65535)
+    WeActDisplay\LastError = "Sensor period must be 0 or 500..65535 ms"
+    ProcedureReturn #False
+  EndIf
+  Command(0) = $06
+  Command(1) = PeriodMs & $FF
+  Command(2) = (PeriodMs >> 8) & $FF
+  Command(3) = $0A
+  If Not SendCommand(@Command(), 4) : ProcedureReturn #False : EndIf
+  WeActDisplay\SensorPeriod = PeriodMs
+  If PeriodMs = 0 : WeActDisplay\SensorValid = #False : EndIf
+  ProcedureReturn #True
+EndProcedure
+
+Procedure.s WeAct_GetFirmwareVersion(TimeoutMs.i = 1000)
+  ; The 3.5-inch firmware returns a 19-byte reply to C2 0A.
+  Protected started.q, received.i, discard.a, character.a, i.i
+  Protected version.s = ""
+  Dim Command.a(1)
+
+  If WeActDisplay\Model <> #WEACT_MODEL_350
+    WeActDisplay\LastError = "Firmware version query is supported only by the 3.5-inch display"
+    ProcedureReturn ""
+  EndIf
+  If Not WeActDisplay\IsConnected
+    WeActDisplay\LastError = "Display not connected"
+    ProcedureReturn ""
+  EndIf
+  If TimeoutMs < 1 : TimeoutMs = 1000 : EndIf
+  If TimeoutMs > 5000 : TimeoutMs = 5000 : EndIf
+
+  ; A previous sensor report must not be mistaken for a version response.
+  While AvailableSerialPortInput(WeActDisplay\SerialPort) > 0
+    If ReadSerialPortData(WeActDisplay\SerialPort, @discard, 1) <> 1 : Break : EndIf
+  Wend
+
+  Command(0) = $C2
+  Command(1) = $0A
+  If Not SendCommand(@Command(), 2)
+    ProcedureReturn ""
+  EndIf
+
+  Dim Response.a(18)
+  started = ElapsedMilliseconds()
+  While received < 19 And ElapsedMilliseconds() - started < TimeoutMs
+    If AvailableSerialPortInput(WeActDisplay\SerialPort) > 0
+      If ReadSerialPortData(WeActDisplay\SerialPort, @Response(received), 1) = 1
+        received + 1
+      EndIf
+    Else
+      Delay(5)
+    EndIf
+  Wend
+
+  If received <> 19
+    WeActDisplay\LastError = "Timed out waiting for the firmware version"
+    ProcedureReturn ""
+  EndIf
+
+  For i = 1 To 8
+    character = Response(i)
+    If character >= 32 And character <= 126
+      version + Chr(character)
+    EndIf
+  Next
+  version = Trim(version)
+  If version = ""
+    WeActDisplay\LastError = "Firmware version response is invalid"
+    ProcedureReturn ""
+  EndIf
+
+  WeActDisplay\LastError = ""
+  ProcedureReturn version
+EndProcedure
+
+Procedure.i WeAct_PollSensor()
+  ; Nonblocking parser for the documented 86 LL HH LL HH 0A packet.
+  Protected value.a, count.i, temperature.i, humidity.i
+  If WeActDisplay\Model <> #WEACT_MODEL_350 Or Not WeActDisplay\IsConnected
+    ProcedureReturn #False
+  EndIf
+  count = AvailableSerialPortInput(WeActDisplay\SerialPort)
+  While count > 0
+    If ReadSerialPortData(WeActDisplay\SerialPort, @value, 1) <> 1 : Break : EndIf
+    If WeActDisplay\SensorPosition = 0
+      If value = $86
+        WeActDisplay\SensorPacket[0] = value
+        WeActDisplay\SensorPosition = 1
+      EndIf
+    Else
+      WeActDisplay\SensorPacket[WeActDisplay\SensorPosition] = value
+      WeActDisplay\SensorPosition + 1
+      If WeActDisplay\SensorPosition = 6
+        WeActDisplay\SensorPosition = 0
+        If WeActDisplay\SensorPacket[5] = $0A
+          temperature = WeActDisplay\SensorPacket[1] & $FF | ((WeActDisplay\SensorPacket[2] & $FF) << 8)
+          humidity = WeActDisplay\SensorPacket[3] & $FF | ((WeActDisplay\SensorPacket[4] & $FF) << 8)
+          If humidity >= 0 And humidity <= 10000
+            WeActDisplay\Temperature = temperature / 100.0
+            WeActDisplay\Humidity = humidity / 100.0
+            WeActDisplay\SensorLastTime = ElapsedMilliseconds()
+            WeActDisplay\SensorValid = #True
+          EndIf
+        EndIf
+      EndIf
+    EndIf
+    count - 1
+  Wend
+  ProcedureReturn WeActDisplay\SensorValid
+EndProcedure
+
+Procedure.i WeAct_GetSensorValues(*Temperature.Float, *Humidity.Float, MaxAgeMs.i = 5000)
+  If WeActDisplay\Model <> #WEACT_MODEL_350 Or Not WeActDisplay\IsConnected
+    WeActDisplay\LastError = "Sensors unavailable"
+    ProcedureReturn #False
+  EndIf
+  WeAct_PollSensor()
+  If Not WeActDisplay\SensorValid Or ElapsedMilliseconds() - WeActDisplay\SensorLastTime > MaxAgeMs
+    WeActDisplay\LastError = "No recent sensor report"
+    ProcedureReturn #False
+  EndIf
+  If *Temperature : *Temperature\f = WeActDisplay\Temperature : EndIf
+  If *Humidity : *Humidity\f = WeActDisplay\Humidity : EndIf
+  ProcedureReturn #True
 EndProcedure
 
 Procedure.s WeAct_GetLastError()
@@ -1537,53 +1968,10 @@ EndProcedure
 
 ; { OVERLAY MODE INIT }
 
-Procedure WeAct_InitNoClear(PortName.s = "COM3")
-  ; Initialize connection to WeAct display WITHOUT clearing screen
-  ; Use this for overlay mode to preserve existing screen content
-  ; PortName: Serial port name (e.g., "COM3")
-  
-  ; Open serial port
-  WeActDisplay\SerialPort = OpenSerialPort(#PB_Any, PortName, #WEACT_BAUDRATE, 
-                                          #PB_SerialPort_NoParity, 8, 1, 
-                                          #PB_SerialPort_NoHandshake, 2048, 2048)
-  
-  If WeActDisplay\SerialPort
-    ; Store connection parameters
-    WeActDisplay\PortName = PortName
-    WeActDisplay\IsConnected = #True
-    WeActDisplay\CurrentOrientation = #WEACT_LANDSCAPE
-    WeActDisplay\CurrentBrightness = 255
-    WeActDisplay\DisplayWidth = #WEACT_DISPLAY_WIDTH
-    WeActDisplay\DisplayHeight = #WEACT_DISPLAY_HEIGHT
-    WeActDisplay\BufferSize = #WEACT_MAX_BUFFER_SIZE
-    
-    ; Allocate memory for double buffering if not already allocated
-    If Not WeActDisplay\FrameBuffer
-      WeActDisplay\FrameBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
-    EndIf
-    If Not WeActDisplay\BackBuffer
-      WeActDisplay\BackBuffer = AllocateMemory(#WEACT_MAX_BUFFER_SIZE)
-    EndIf
-    
-    If WeActDisplay\FrameBuffer And WeActDisplay\BackBuffer
-      ; DON'T clear buffers - preserve content for overlay
-      ; DON'T call WeAct_SetOrientation - avoid screen refresh
-      
-      ; Initialize image decoders
-      WeAct_InitImageDecoders()
-      
-      WeActDisplay\LastError = ""
-      ProcedureReturn #True
-    Else
-      WeActDisplay\IsConnected = #False
-      WeActDisplay\LastError = "Failed to allocate memory buffers"
-      ProcedureReturn #False
-    EndIf
-  Else
-    WeActDisplay\IsConnected = #False
-    WeActDisplay\LastError = "Failed to open serial port " + PortName
-    ProcedureReturn #False
-  EndIf
+Procedure.i WeAct_InitNoClear(PortName.s = "COM3", Model.i = #WEACT_MODEL_096)
+  ; Preserve the physical screen. Fresh software buffers start black because
+  ; the device has no documented readback command.
+  ProcedureReturn WeAct_InitInternal(PortName, Model, #True)
 EndProcedure
 
 ; { CLEANUP }
@@ -1594,8 +1982,9 @@ Procedure WeAct_Cleanup()
   WeAct_Close()
 EndProcedure
 
-; IDE Options = PureBasic 6.21 (Windows - x86)
+; IDE Options = PureBasic 6.41 (Windows - x64)
 ; CursorPosition = 237
 ; FirstLine = 228
 ; Folding = ----------
 ; EnableXP
+

@@ -2,6 +2,8 @@
 
 A real-time FPS monitoring tool that displays frame rate information on a WeAct display connected via serial port.
 
+> **Version 6:** use an explicit model and fixed orientation: `WeActFPS.exe /p:21 /model:350 /orientation:landscape [/m:0] [/i:1000] [/v]`. `/model:096` is the default; valid orientations are `portrait`, `landscape`, `reverse-portrait`, and `reverse-landscape`.
+
 ## 🌟 Features
 - Real-time FPS monitoring from specified display
 - Multiple calculation methods (refresh rate and screen capture)
@@ -36,13 +38,15 @@ This connects to COM3 with default settings.
 
 ### Complete Syntax
 ```bash
-WeActFPS.exe /p:<port> [/m:<monitor>] [/i:<interval>] [/v]
+WeActFPS.exe /p:<port> [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/m:<monitor>] [/i:<interval>] [/v]
 ```
 
 ### Parameters
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `/p:<port>` | **Required.** COM port number (e.g., `/p:3` for COM3) | - |
+| `/model:096\|350` | Display model | 096 |
+| `/orientation:...` | Fixed display orientation | landscape |
 | `/m:<monitor>` | Monitor index (0 = primary) | 0 |
 | `/i:<interval>` | Update interval in milliseconds (100-5000) | 1000 |
 | `/v` | Verbose mode - shows detailed console output | Off |
@@ -159,11 +163,26 @@ Executable = WeActFPS.exe
 ## 📝 License
 This project is provided as-is for educational and personal use. Commercial use may require additional permissions.
 
+## 🤝 Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📞 Support
+For issues and questions:
+1. Check existing Issues on GitHub
+2. Verify COM port settings
+3. Ensure WeAct display firmware is up to date
+4. Review verbose output for error messages
+
 ---
 
 # WeAct Display FPS Monitor (Русская версия)
 
 Инструмент для мониторинга FPS в реальном времени с выводом информации на дисплей WeAct через последовательный порт.
+
+> **Версия 6:** указывайте модель и фиксированную ориентацию: `WeActFPS.exe /p:21 /model:350 /orientation:landscape [/m:0] [/i:1000] [/v]`. `/model:096` — значение по умолчанию; допустимы `portrait`, `landscape`, `reverse-portrait`, `reverse-landscape`.
 
 ## 🌟 Возможности
 - Мониторинг FPS в реальном времени с указанного дисплея
@@ -199,13 +218,15 @@ WeActFPS.exe /p:3
 
 ### Полный синтаксис
 ```bash
-WeActFPS.exe /p:<port> [/m:<monitor>] [/i:<interval>] [/v]
+WeActFPS.exe /p:<port> [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/m:<monitor>] [/i:<interval>] [/v]
 ```
 
 ### Параметры
 | Параметр | Описание | По умолчанию |
 |----------|----------|--------------|
 | `/p:<port>` | **Обязательный.** Номер COM порта (например, `/p:3` для COM3) | - |
+| `/model:096\|350` | Модель дисплея | 096 |
+| `/orientation:...` | Фиксированная ориентация | landscape |
 | `/m:<monitor>` | Индекс монитора (0 = основной) | 0 |
 | `/i:<interval>` | Интервал обновления в миллисекундах (100-5000) | 1000 |
 | `/v` | Подробный режим - показывает детальный вывод в консоль | Выключен |
@@ -321,5 +342,4 @@ Executable = WeActFPS.exe
 
 ## 📝 Лицензия
 Проект предоставляется "как есть" для образовательного и личного использования. Коммерческое использование может требовать дополнительных разрешений.
-
 

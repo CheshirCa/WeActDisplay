@@ -2,6 +2,8 @@
 
 ## English
 
+> **Version 6:** this is a console test program, not the legacy GUI described below. Run offline checks with `WeActTest.exe`; run the physical test as `WeActTest.exe /hardware COM17 096` or `WeActTest.exe /hardware COM21 350`. The 3.5-inch run additionally tests firmware version, temperature/humidity sensor, FastLZ, dynamic buffers, and all four fixed orientations.
+
 ### Overview
 Professional test application for WeAct 0.96" USB display (160x80 pixels). The program allows you to thoroughly test all display functions through a convenient graphical interface.
 
@@ -68,6 +70,8 @@ Professional test application for WeAct 0.96" USB display (160x80 pixels). The p
 ---
 
 ## Русский
+
+> **Версия 6:** это консольная программа тестирования, а не устаревшее GUI-приложение, описанное ниже. Автономные проверки: `WeActTest.exe`; аппаратная проверка: `WeActTest.exe /hardware COM17 096` или `WeActTest.exe /hardware COM21 350`. Для 3.5-inch дополнительно проверяются версия прошивки, датчик температуры/влажности, FastLZ, динамические буферы и все четыре фиксированные ориентации.
 
 ### Обзор
 Профессиональное тестовое приложение для USB-дисплея WeAct 0.96" (160x80 пикселей). Программа позволяет тщательно протестировать все функции дисплея через удобный графический интерфейс.

@@ -6,6 +6,12 @@
 
 ## English
 
+> **Version 6 command reference.** The display model is now explicit. Use `/model:096` (default) or `/model:350`; the latter enables `/sensor` and `/fastlz`. Fixed orientations are `portrait`, `landscape`, `reverse-portrait`, and `reverse-landscape`; auto-rotation is unsupported.
+
+```text
+WeActCLI /p:X [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/brightness:0..255] [/sensor] [/fastlz] [/v] [/c:color] [/f:"Font":Size] [/s:Speed[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:"path"] [/image:"path"[:mode[:WxH]]] ["text"]
+```
+
 WeActCLI is a powerful command-line utility for displaying text and images on WeAct Display FS via serial port (COM port). It supports multiple input sources, text formatting, scrolling, and image display modes.
 
 ### Features
@@ -74,6 +80,11 @@ WeActCLI /p:X [/v][/c:YYY] [/f:"Font Name":Size] [/s:Speed[:u|d]] [/center] [/x:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `/p:X` | **Required** COM port number | `/p:3` for COM3 |
+| `/model:096\|350` | Display model; default is 096 | `/model:350` |
+| `/orientation:...` | Fixed display orientation | `/orientation:landscape` |
+| `/brightness:0..255` | Brightness | `/brightness:180` |
+| `/sensor` | Read temperature/humidity; model 350 only | `/model:350 /sensor` |
+| `/fastlz` | Enable FastLZ transport; model 350 only | `/model:350 /fastlz` |
 | `/c:YYY` | Text color | `/c:red`, `/c:blue`, `/c:white` |
 | `/f:"Font":Size` | Font name and size | `/f:Arial:10`, `/f:"Times New Roman":12` |
 | `/s:Speed[:u\|d]` | Scroll speed and direction | `/s:25.5`, `/s:40:d` |
@@ -202,6 +213,12 @@ For issues and questions:
 
 ## Русский
 
+> **Справка по командам версии 6.** Теперь модель задаётся явно: `/model:096` (по умолчанию) или `/model:350`; для 3.5-inch доступны `/sensor` и `/fastlz`. Допустимы фиксированные ориентации `portrait`, `landscape`, `reverse-portrait`, `reverse-landscape`; автоповорот не поддерживается.
+
+```text
+WeActCLI /p:X [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/brightness:0..255] [/sensor] [/fastlz] [/v] [/c:цвет] [/f:"Шрифт":Размер] [/s:Скорость[:u|d]] [/center] [/x:X] [/y:Y] [/CLS] [/file:"путь"] [/image:"путь"[:режим[:ШxВ]]] ["текст"]
+```
+
 WeActCLI - мощная консольная утилита для отображения текста и изображений на дисплее WeAct Display FS через последовательный порт (COM-порт). Поддерживает несколько источников ввода, форматирование текста, прокрутку и режимы отображения изображений.
 
 ### Возможности
@@ -270,6 +287,11 @@ WeActCLI /p:X [/v][/c:YYY] [/f:"Имя шрифта":Размер] [/s:Скор�
 | Параметр | Описание | Пример |
 |-----------|-------------|---------|
 | `/p:X` | **Обязательный** Номер COM-порта | `/p:3` для COM3 |
+| `/model:096\|350` | Модель дисплея; по умолчанию 096 | `/model:350` |
+| `/orientation:...` | Фиксированная ориентация | `/orientation:landscape` |
+| `/brightness:0..255` | Яркость | `/brightness:180` |
+| `/sensor` | Температура/влажность; только модель 350 | `/model:350 /sensor` |
+| `/fastlz` | Сжатая передача FastLZ; только модель 350 | `/model:350 /fastlz` |
 | `/c:YYY` | Цвет текста | `/c:red`, `/c:blue`, `/c:white` |
 | `/f:"Шрифт":Размер` | Имя шрифта и размер | `/f:Arial:10`, `/f:"Times New Roman":12` |
 | `/s:Скорость[:u\|d]` | Скорость и направление прокрутки | `/s:25.5`, `/s:40:d` |

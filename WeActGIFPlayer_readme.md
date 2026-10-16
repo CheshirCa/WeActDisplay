@@ -36,6 +36,8 @@ A utility for displaying animated GIF files on WeAct USB displays (160x80 pixels
 
 ### Usage
 
+> **Version 6 syntax:** `WeActGIFPlayer.exe /p:21 [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/s:1.0] [/l] [/fastlz] [/changed] [/v] file.gif`. `/fastlz` is 3.5-inch (`/model:350`) only; `/changed` transfers only the changed bounding rectangle.
+
 ```bash
 WeActGIFPlayer.exe [/p:port] [/s:speed] [/l] [/v] <gif_file>
 ```
@@ -137,6 +139,8 @@ The program:
 2. Поместите `WeActDisplay.pbi` в ту же директорию, что и исполняемый файл
 
 ### Использование
+
+> **Синтаксис версии 6:** `WeActGIFPlayer.exe /p:21 [/model:096|350] [/orientation:portrait|landscape|reverse-portrait|reverse-landscape] [/s:1.0] [/l] [/fastlz] [/changed] [/v] file.gif`. `/fastlz` доступен только для 3.5-inch (`/model:350`); `/changed` передаёт только ограничивающий прямоугольник изменений.
 
 ```bash
 WeActGIFPlayer.exe [/p:порт] [/s:скорость] [/l] [/v] <файл_gif>
